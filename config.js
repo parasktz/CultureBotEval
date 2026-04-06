@@ -4,7 +4,7 @@
 // ╚══════════════════════════════════════════════════════╝
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyA_aHBdW2p5BwfZZhwYK99ybWr2aOPS8fs",
+ apiKey: "AIzaSyA_aHBdW2p5BwfZZhwYK99ybWr2aOPS8fs",
   authDomain: "cultureboteval.firebaseapp.com",
   databaseURL: "https://cultureboteval-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "cultureboteval",
