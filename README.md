@@ -88,7 +88,7 @@ index.html  →  role.html  →  evaluator.html  →  evaluation.html?session=CO
 }
 ```
 
-## Tech Stack
+## Tech Stack :
 
 | Layer | Technology |
 |-------|-----------|
