@@ -1,12 +1,12 @@
-# Persona Evaluation System
+# Culture Bot Evaluation
 
-Multi-page web application with Firebase Authentication and Realtime Database. Hosted on GitHub Pages — no server required.
+``` Multi-page web application with Firebase Authentication and Realtime Database. Hosted on GitHub Pages — no server required.
 
 ---
 
 ## File Structure
 
-```
+
 ├── config.js        ← Firebase config (you fill this once)
 ├── styles.css       ← Shared styles for all pages
 ├── index.html       ← Sign In / Sign Up (email + Google)
