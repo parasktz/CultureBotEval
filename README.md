@@ -2,7 +2,7 @@
 
 Multi-page web application with Firebase Authentication and Realtime Database. Hosted on GitHub Pages — no server required.
 
----
+---  
 
 ## File Structure
 
