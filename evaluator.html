@@ -2,40 +2,40 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Persona Evaluation — Evaluator</title>
 <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
 
-<div class="header">
-  <div class="header-left">
-    <a href="role.html" style="font-size:13px;color:var(--muted);margin-right:6px;">← Πίσω</a>
+<div class="hdr">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <a href="role.html" style="font-size:13px;color:var(--muted);">← Πίσω</a>
     <div>
-      <div class="header-logo">Evaluator</div>
-      <div class="header-sub">Επίλεξε session για αξιολόγηση</div>
+      <div class="hdr-title">Evaluator</div>
+      <div class="hdr-sub">Επίλεξε session για αξιολόγηση</div>
     </div>
   </div>
-  <div class="user-pill">
-    <div class="user-avatar" id="user-initials"></div>
-    <span id="user-email" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-    <button class="btn sm" id="btn-signout">Έξοδος</button>
+  <div class="hdr-right">
+    <div class="avatar" id="av"></div>
+    <span class="hdr-email" id="umail"></span>
+    <button class="btn sm" id="btn-out">Έξοδος</button>
   </div>
 </div>
 
 <div class="page">
 
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px;">
     <div>
-      <div class="page-title">Sessions</div>
-      <div class="page-sub" style="margin:0;">Επίλεξε ένα session για να ξεκινήσεις την αξιολόγηση.</div>
+      <div style="font-size:18px;font-weight:500;">Sessions</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:2px;">Επίλεξε ένα session για αξιολόγηση ή επεξεργασία.</div>
     </div>
     <button class="btn sm" id="btn-refresh">↻ Ανανέωση</button>
   </div>
 
-  <div id="sessions-body">
+  <div id="body">
     <div style="text-align:center;padding:3rem;color:var(--muted);">
-      <span class="spinner"></span><br><br>Φόρτωση sessions...
+      <span class="spin"></span><br><br>Φόρτωση sessions...
     </div>
   </div>
 
@@ -50,65 +50,77 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
 const db   = firebase.database();
 const $    = id => document.getElementById(id);
-const esc  = s => {const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;};
+const esc  = s => { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; };
 
-auth.onAuthStateChanged(user => {
-  if(!user){ window.location.href='index.html'; return; }
-  const name = user.displayName || user.email;
-  $('user-email').textContent = user.email;
-  $('user-initials').textContent = name.trim().split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-  loadSessions();
+let currentUid = null;
+
+auth.onAuthStateChanged(u => {
+  if(!u){ location.href='index.html'; return; }
+  currentUid = u.uid;
+  const name = u.displayName || u.email;
+  $('umail').textContent = u.email;
+  $('av').textContent    = name.trim().split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  load();
 });
 
-$('btn-signout').addEventListener('click', async()=>{ await auth.signOut(); window.location.href='index.html'; });
-$('btn-refresh').addEventListener('click', loadSessions);
+$('btn-out').addEventListener('click', async () => { await auth.signOut(); location.href='index.html'; });
+$('btn-refresh').addEventListener('click', load);
 
-async function loadSessions(){
-  $('sessions-body').innerHTML = `<div style="text-align:center;padding:3rem;color:var(--muted);"><span class="spinner"></span><br><br>Φόρτωση sessions...</div>`;
+async function load(){
+  $('body').innerHTML = `<div style="text-align:center;padding:3rem;color:var(--muted);"><span class="spin"></span><br><br>Φόρτωση sessions...</div>`;
   try{
     const snap = await db.ref('sessions').get();
     if(!snap.exists()){
-      $('sessions-body').innerHTML = `<div style="text-align:center;padding:3rem;color:var(--muted);">Δεν υπάρχουν sessions ακόμη.</div>`;
+      $('body').innerHTML = `<div style="text-align:center;padding:3rem;color:var(--muted);">Δεν υπάρχουν sessions ακόμη.</div>`;
       return;
     }
-    const sessions = snap.val();
-    const entries  = Object.entries(sessions).reverse();
+    const data    = snap.val();
+    const entries = Object.entries(data).reverse();
 
-    let rows = entries.map(([code, s]) => {
-      const evalCount = s.evaluations ? Object.keys(s.evaluations).length : 0;
-      const queryShort = (s.query||'').length > 80 ? s.query.substring(0,80)+'…' : s.query;
+    const rows = entries.map(([code, s]) => {
+      const q = (s.query||'').length > 80 ? s.query.substring(0,80)+'…' : (s.query||'—');
+      const evals = s.evaluations ? Object.entries(s.evaluations) : [];
+      const myEval = evals.find(([, ev]) => ev.evaluatorUid === currentUid);
+      const totalCount = evals.length;
+
+      const statusBadge = myEval
+        ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#E1F5EE;color:#085041;font-size:11px;border-radius:4px;padding:2px 8px;">✓ Έχεις αξιολογήσει</span>`
+        : `<span style="display:inline-flex;align-items:center;gap:4px;background:#FAEEDA;color:#7a4a08;font-size:11px;border-radius:4px;padding:2px 8px;">— Εκκρεμεί</span>`;
+
+      const actionBtn = myEval
+        ? `<a href="evaluation.html?session=${esc(code)}" class="btn sm" style="border-color:var(--green-t);color:var(--green-t);">✏ Επεξεργασία</a>`
+        : `<a href="evaluation.html?session=${esc(code)}" class="btn sm pri">Αξιολόγηση →</a>`;
+
       return `<tr>
-        <td><span class="td-code">${esc(code)}</span></td>
         <td>
-          <div style="font-size:13px;font-weight:500;">${esc(s.llmTitle||'—')}</div>
-          <div class="td-muted">${esc(s.personaTitle||'')}</div>
+          <span class="td-code">${esc(code)}</span>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(s.createdAt||'')} · ${esc(s.creator||'')} · ${totalCount} αξιολόγηση${totalCount!==1?'ες':''}</div>
         </td>
-        <td style="max-width:260px;">
-          <div style="font-size:13px;color:var(--text);">${esc(queryShort)}</div>
-          <div class="td-muted">${esc(s.createdAt||'')} · ${esc(s.creator||'')} · ${evalCount} αξιολόγησ${evalCount!==1?'εις':''}</div>
-        </td>
+        <td style="max-width:240px;">${esc(q)}</td>
         <td>
-          <a href="evaluation.html?session=${esc(code)}" class="btn sm primary">Αξιολόγηση →</a>
+          <div style="font-weight:500;">${esc(s.llmTitle||'—')}</div>
+          <div style="font-size:11px;color:var(--muted);">${esc(s.personaTitle||'')}</div>
         </td>
+        <td>${statusBadge}</td>
+        <td>${actionBtn}</td>
       </tr>`;
     }).join('');
 
-    $('sessions-body').innerHTML = `
+    $('body').innerHTML = `
       <div class="tbl-wrap">
         <table>
-          <thead>
-            <tr>
-              <th>Κωδικός Session</th>
-              <th>LLM</th>
-              <th>Query</th>
-              <th></th>
-            </tr>
-          </thead>
+          <thead><tr>
+            <th>Κωδικός Session</th>
+            <th>Query</th>
+            <th>LLM</th>
+            <th>Κατάσταση</th>
+            <th></th>
+          </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
   }catch(e){
-    $('sessions-body').innerHTML = `<div class="notice err">Σφάλμα φόρτωσης: ${esc(e.message)}</div>`;
+    $('body').innerHTML = `<div class="notice n-err">Σφάλμα φόρτωσης: ${esc(e.message)}</div>`;
   }
 }
 </script>
