@@ -4,7 +4,7 @@ Multi-page web application with Firebase Authentication and Realtime Database. H
 
 ---  
     
-## File Structure
+## File Structure:
 
 ```
 ├── config.js        ← Firebase config (you fill this once)
