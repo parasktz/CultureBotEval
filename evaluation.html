@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Persona Evaluation — Αξιολόγηση</title>
+<title>Persona Evaluation — Νέα Αξιολόγηση</title>
 <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -12,7 +12,7 @@
   <div style="display:flex;align-items:center;gap:10px;">
     <a href="evaluator.html" style="font-size:13px;color:var(--muted);">← Λίστα</a>
     <div>
-      <div class="hdr-title" id="hdr-title">Αξιολόγηση Session</div>
+      <div class="hdr-title">Νέα Αξιολόγηση</div>
       <div class="hdr-sub" id="hdr-code">Φόρτωση...</div>
     </div>
   </div>
@@ -31,18 +31,12 @@
 
   <div id="ev-area" style="display:none;">
 
-    <!-- Edit mode banner -->
-    <div id="edit-banner" class="notice n-info" style="display:none;">
-      ✏ <strong>Λειτουργία επεξεργασίας</strong> — Οι παρακάτω απαντήσεις είναι προσυμπληρωμένες με τις τελευταίες απαντήσεις σου. Κάνε τις αλλαγές που θέλεις και πάτα "Ενημέρωση".
-    </div>
-
-    <!-- Frozen session fields -->
+    <!-- Frozen fields -->
     <div class="card">
       <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span>Στοιχεία Session</span>
         <span style="font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0;text-transform:none;">🔒 Παγωμένα πεδία</span>
       </div>
-
       <div class="two">
         <div class="field">
           <div class="fl">Creator</div>
@@ -94,19 +88,17 @@
         <span class="spin"></span> Αποθήκευση...
       </span>
     </div>
-
   </div>
 
   <!-- Done -->
   <div id="done-area" style="display:none;">
-    <div class="notice n-ok" style="font-size:14px;" id="done-msg"></div>
+    <div class="notice n-ok" style="font-size:14px;">✓ Η αξιολόγησή σας αποθηκεύτηκε επιτυχώς!</div>
     <div class="card">
       <div class="sec-title">Περίληψη βαθμολογιών</div>
       <div id="done-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
     </div>
     <div class="btn-row">
       <a href="evaluator.html" class="btn pri">← Επιστροφή στη λίστα</a>
-      <button class="btn" id="btn-edit-again">✏ Νέα Επεξεργασία</button>
     </div>
   </div>
 
@@ -137,10 +129,7 @@ const CRITERIA = [
   {id:10, name:'Needed Logical Steps',                    opts:['All Present','Mostly Present','Partially Present','Missing']}
 ];
 
-let eRatings   = {};
-let eComments  = {};
-let isEditMode = false;
-let existingEvalKey = null;
+let eRatings = {}, eComments = {};
 const sessionCode = new URLSearchParams(location.search).get('session');
 
 function setMsg(msg, type='n-err'){
@@ -156,12 +145,12 @@ auth.onAuthStateChanged(async u => {
     $('loading').innerHTML = `<div class="notice n-err">Δεν βρέθηκε κωδικός session στο URL.</div>`;
     return;
   }
-  loadSession(u);
+  loadSession();
 });
 
 $('btn-out').addEventListener('click', async () => { await auth.signOut(); location.href='index.html'; });
 
-async function loadSession(user){
+async function loadSession(){
   try{
     const snap = await db.ref('sessions/'+sessionCode).get();
     if(!snap.exists()){
@@ -169,80 +158,38 @@ async function loadSession(user){
       return;
     }
     const s = snap.val();
-
-    // Fill frozen fields
-    $('hdr-code').textContent      = `Session: ${sessionCode} · ${s.llmTitle||''}`;
-    $('f-creator').textContent     = s.creator       || '—';
-    $('f-ptitle').textContent      = s.personaTitle  || '—';
-    $('f-role').textContent        = s.personaRole   || '—';
-    $('f-llm-title').textContent   = s.llmTitle      || '—';
-    $('f-llm-desc').textContent    = s.llmDescription|| '—';
-    $('f-query').textContent       = s.query         || '—';
-    $('f-code').textContent        = sessionCode;
+    $('hdr-code').textContent    = `Session: ${sessionCode} · ${s.llmTitle||''}`;
+    $('f-creator').textContent   = s.creator       || '—';
+    $('f-ptitle').textContent    = s.personaTitle  || '—';
+    $('f-role').textContent      = s.personaRole   || '—';
+    $('f-llm-title').textContent = s.llmTitle      || '—';
+    $('f-llm-desc').textContent  = s.llmDescription|| '—';
+    $('f-query').textContent     = s.query         || '—';
+    $('f-code').textContent      = sessionCode;
     if(s.guidelines){
       $('f-guide').textContent       = s.guidelines;
       $('f-guide-row').style.display = '';
     }
-
-    // Check if user already has an evaluation
-    let existingEval = null;
-    if(s.evaluations){
-      const entries = Object.entries(s.evaluations);
-      const found   = entries.find(([, ev]) => ev.evaluatorUid === user.uid);
-      if(found){
-        existingEvalKey = found[0];
-        existingEval    = found[1];
-        isEditMode      = true;
-      }
-    }
-
-    // Update UI for edit mode
-    if(isEditMode){
-      $('hdr-title').textContent        = 'Επεξεργασία Αξιολόγησης';
-      $('edit-banner').style.display    = 'block';
-      $('ev-submit').textContent        = 'Ενημέρωση Αξιολόγησης ✓';
-      $('ev-submit').style.background   = '#178a61';
-      $('ev-submit').style.borderColor  = '#178a61';
-    }
-
-    buildCriteria(existingEval);
+    buildCriteria();
     $('loading').style.display = 'none';
     $('ev-area').style.display = 'block';
-
   }catch(e){
     $('loading').innerHTML = `<div class="notice n-err">Σφάλμα φόρτωσης: ${esc(e.message)}</div>`;
   }
 }
 
-function buildCriteria(existingEval){
-  eRatings  = {};
-  eComments = {};
-
-  // Pre-fill from existing evaluation if in edit mode
-  if(existingEval){
-    CRITERIA.forEach(c => {
-      if(existingEval.ratings  && existingEval.ratings[c.id])  eRatings[c.id]  = existingEval.ratings[c.id];
-      if(existingEval.comments && existingEval.comments[c.id]) eComments[c.id] = existingEval.comments[c.id];
-    });
-  }
-
-  $('crit-grid').innerHTML = CRITERIA.map(c => {
-    const selectedVal  = eRatings[c.id]  || null;
-    const commentVal   = eComments[c.id] || '';
-    return `
+function buildCriteria(){
+  eRatings = {}; eComments = {};
+  $('crit-grid').innerHTML = CRITERIA.map(c => `
     <div class="cc">
       <div class="ch"><div class="cn">${c.id}</div><div class="cname">${esc(c.name)}</div></div>
       <div class="mcg">
-        ${c.opts.map(o => `
-          <button class="mco${selectedVal===o?' sel':''}" data-c="${c.id}" data-v="${esc(o)}">${esc(o)}</button>
-        `).join('')}
+        ${c.opts.map(o=>`<button class="mco" data-c="${c.id}" data-v="${esc(o)}">${esc(o)}</button>`).join('')}
       </div>
       <div style="font-size:11px;color:var(--red);display:none;" id="cerr-${c.id}">Επιλέξτε μια απάντηση</div>
-      <textarea class="fi" rows="2" placeholder="Σχόλια (προαιρετικά)..." data-cm="${c.id}" style="margin-top:5px;">${esc(commentVal)}</textarea>
-    </div>`;
-  }).join('');
+      <textarea class="fi" rows="2" placeholder="Σχόλια (προαιρετικά)..." data-cm="${c.id}" style="margin-top:5px;"></textarea>
+    </div>`).join('');
 
-  // Bind MC option clicks
   document.querySelectorAll('.mco').forEach(b => {
     b.addEventListener('click', () => {
       const cid = parseInt(b.dataset.c);
@@ -252,19 +199,13 @@ function buildCriteria(existingEval){
       $('cerr-'+cid).style.display = 'none';
     });
   });
-
-  // Bind comment fields
   document.querySelectorAll('[data-cm]').forEach(ta => {
-    ta.addEventListener('input', e => {
-      eComments[parseInt(e.target.dataset.cm)] = e.target.value;
-    });
+    ta.addEventListener('input', e => { eComments[parseInt(e.target.dataset.cm)] = e.target.value; });
   });
 }
 
 $('ev-submit').addEventListener('click', async () => {
   setMsg('');
-
-  // Validate all criteria
   let valid = true;
   CRITERIA.forEach(c => {
     if(!eRatings[c.id]){
@@ -281,7 +222,6 @@ $('ev-submit').addEventListener('click', async () => {
     evaluatorEmail: u.email,
     evaluatorUid:   u.uid,
     timestamp:      now(),
-    lastEdited:     isEditMode ? now() : null,
     ratings:        {},
     comments:       {}
   };
@@ -294,44 +234,19 @@ $('ev-submit').addEventListener('click', async () => {
   $('ev-load').style.display   = '';
 
   try{
-    if(isEditMode && existingEvalKey){
-      // UPDATE existing evaluation
-      await db.ref('sessions/'+sessionCode+'/evaluations/'+existingEvalKey).set(payload);
-      $('done-msg').innerHTML = '✓ Η αξιολόγησή σας <strong>ενημερώθηκε</strong> επιτυχώς!';
-    } else {
-      // CREATE new evaluation
-      await db.ref('sessions/'+sessionCode+'/evaluations').push(payload);
-      $('done-msg').innerHTML = '✓ Η αξιολόγησή σας αποθηκεύτηκε επιτυχώς!';
-    }
-
+    await db.ref('sessions/'+sessionCode+'/evaluations').push(payload);
     $('done-grid').innerHTML = CRITERIA.map(c => `
       <div style="background:var(--bg);border-radius:6px;padding:7px 10px;">
         <div style="font-size:10px;color:var(--muted);margin-bottom:1px;">${esc(c.name)}</div>
         <div style="font-size:12px;font-weight:500;">${esc(eRatings[c.id]||'—')}</div>
       </div>`).join('');
-
     $('ev-area').style.display   = 'none';
     $('done-area').style.display = 'block';
-
   }catch(e){
     $('ev-submit').style.display = '';
     $('ev-load').style.display   = 'none';
     setMsg('Σφάλμα αποθήκευσης: '+e.message);
   }
-});
-
-// Allow editing again from done screen
-$('btn-edit-again').addEventListener('click', () => {
-  $('done-area').style.display = 'none';
-  $('ev-area').style.display   = 'block';
-  isEditMode      = true;
-  $('ev-submit').textContent       = 'Ενημέρωση Αξιολόγησης ✓';
-  $('ev-submit').style.background  = '#178a61';
-  $('ev-submit').style.borderColor = '#178a61';
-  $('ev-submit').style.display     = '';
-  $('ev-load').style.display       = 'none';
-  $('edit-banner').style.display   = 'block';
-  setMsg('');
 });
 </script>
 </body>
