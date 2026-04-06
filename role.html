@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Persona Evaluation — Επιλογή Ρόλου</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div>
+      <div class="header-logo">Persona Evaluation System</div>
+      <div class="header-sub">Επιλογή ρόλου</div>
+    </div>
+  </div>
+  <div class="user-pill">
+    <div class="user-avatar" id="user-initials"></div>
+    <span id="user-email" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    <button class="btn sm" id="btn-signout">Έξοδος</button>
+  </div>
+</div>
+
+<div class="page-sm" style="padding-top:3rem;">
+  <div class="page-title" style="text-align:center;">Καλώς ήρθες!</div>
+  <div class="page-sub"   style="text-align:center;">Επίλεξε πώς θέλεις να συμμετέχεις.</div>
+
+  <div id="role-msg"></div>
+
+  <div class="role-grid">
+    <div class="role-card" id="btn-creator">
+      <div class="role-icon">🟦</div>
+      <div class="role-title">Creator</div>
+      <div class="role-desc">Δημιούργησε νέο session αξιολόγησης. Απαιτείται επαλήθευση από τον διαχειριστή.</div>
+    </div>
+    <div class="role-card" id="btn-evaluator">
+      <div class="role-icon">🟩</div>
+      <div class="role-title">Evaluator</div>
+      <div class="role-desc">Αξιολόγησε ένα υπάρχον session. Δεν απαιτείται επαλήθευση.</div>
+    </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db   = firebase.database();
+
+const $ = id => document.getElementById(id);
+
+function setMsg(msg, type='err'){
+  $('role-msg').innerHTML = msg
+    ? `<div class="notice ${type}" style="margin-bottom:1rem;">${msg}</div>` : '';
+}
+
+// Auth guard
+auth.onAuthStateChanged(user => {
+  if(!user){ window.location.href='index.html'; return; }
+  // Show user info
+  const name = user.displayName || user.email;
+  $('user-email').textContent = user.email;
+  $('user-initials').textContent = name.trim().split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+});
+
+$('btn-signout').addEventListener('click', async()=>{
+  await auth.signOut();
+  window.location.href='index.html';
+});
+
+$('btn-evaluator').addEventListener('click',()=>{
+  window.location.href='evaluator.html';
+});
+
+$('btn-creator').addEventListener('click', async()=>{
+  setMsg('');
+  const user = auth.currentUser;
+  if(!user){ window.location.href='index.html'; return; }
+  setMsg('Έλεγχος δικαιωμάτων...','info');
+  try{
+    const snap = await db.ref('verified_creators/'+user.uid).get();
+    if(snap.exists() && snap.val()===true){
+      window.location.href='creator.html';
+    } else {
+      setMsg(`
+        <strong>Δεν έχεις δικαίωμα Creator.</strong><br>
+        Επικοινώνησε με τον διαχειριστή για να επαληθεύσει τον λογαριασμό σου (<code>${user.email}</code>).
+      `,'warn');
+    }
+  }catch(e){ setMsg('Σφάλμα ελέγχου: '+e.message); }
+});
+</script>
+</body>
+</html>
