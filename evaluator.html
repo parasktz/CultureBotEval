@@ -139,9 +139,9 @@ async function load(){
 
     const html = Object.entries(sessions)
       .sort(([,a],[,b]) => (a.personaRole||'').localeCompare(b.personaRole||'', 'el'))
-      .map(([code, s]) => {
+      .map(([code, s], idx) => {
       const allEvals = s.evaluations ? Object.entries(s.evaluations) : [];
-      const q = (s.query||'').length>100 ? s.query.substring(0,100)+'…' : (s.query||'—');
+      const q = (s.query||'').length>120 ? s.query.substring(0,120)+'…' : (s.query||'—');
 
       const evalsItems = allEvals.length > 0
         ? allEvals.map(([key, ev]) => buildEvalItem(code, key, ev, s)).join('')
@@ -151,8 +151,11 @@ async function load(){
         <div class="sess-card">
           <div class="sess-head">
             <div style="flex:1;min-width:0;">
-              <div class="sess-title">${esc(s.llmTitle||'—')}
-                <span style="font-size:15px;font-weight:500;color:var(--text);"> · ${esc(s.personaTitle||'')}</span>
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                <div style="width:26px;height:26px;border-radius:50%;background:var(--blue-bg);color:var(--blue-t);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${idx+1}</div>
+                <div class="sess-title">${esc(s.llmTitle||'—')}
+                  <span style="font-size:15px;font-weight:500;color:var(--text);"> · ${esc(s.personaTitle||'')}</span>
+                </div>
               </div>
               <div class="sess-role">${esc(s.personaRole||'—')}</div>
               <div class="sess-meta">
@@ -160,7 +163,7 @@ async function load(){
                 &nbsp;·&nbsp;Creator: ${esc(s.creator||'')}
                 &nbsp;·&nbsp;${esc(s.createdAt||'')}
               </div>
-              <div class="sess-query">${esc(q)}</div>
+              <div class="sess-query"><span style="font-weight:500;color:var(--blue-t);">Query:</span> ${esc(q)}</div>
             </div>
             <a href="evaluation.html?session=${esc(code)}" class="btn sm pri" style="flex-shrink:0;">+ Νέα Αξιολόγηση</a>
           </div>
