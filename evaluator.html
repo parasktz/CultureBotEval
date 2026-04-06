@@ -136,7 +136,9 @@ async function load(){
     editState = {};
     const sessions = snap.val();
 
-    const html = Object.entries(sessions).reverse().map(([code, s]) => {
+    const html = Object.entries(sessions)
+      .sort(([,a],[,b]) => (a.personaRole||'').localeCompare(b.personaRole||'', 'el'))
+      .map(([code, s]) => {
       const allEvals = s.evaluations ? Object.entries(s.evaluations) : [];
       const q = (s.query||'').length>100 ? s.query.substring(0,100)+'…' : (s.query||'—');
 
@@ -187,6 +189,12 @@ function buildFrozenFields(s){
       <div class="frozen-val">${esc(val||'—')}</div>
     </div>`;
 
+  const roleRow = `
+    <div class="frozen-field frozen-full">
+      <div class="frozen-label">Role of the Persona</div>
+      <div class="frozen-val" style="font-size:15px;font-weight:500;color:var(--blue-t);background:var(--blue-bg);border-color:transparent;line-height:1.65;">${esc(s.personaRole||'—')}</div>
+    </div>`;
+
   return `
     <div class="frozen-section">
       <div class="frozen-title">🔒 Στοιχεία Session (παγωμένα)</div>
@@ -195,7 +203,7 @@ function buildFrozenFields(s){
         ${row('Title of the Persona', s.personaTitle)}
         ${row('LLM', s.llmTitle)}
         ${row('Session Code', '')}
-        ${row('Role of the Persona', s.personaRole, true)}
+        ${roleRow}
         ${s.guidelines ? row('Instructional Guidelines', s.guidelines, true) : ''}
         ${row('LLM Description', s.llmDescription, true)}
         ${row('Query — ChatGPT Version 1', s.query, true)}
