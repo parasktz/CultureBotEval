@@ -2,110 +2,111 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Persona Evaluation — Αξιολόγηση</title>
 <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
 
-<div class="header">
-  <div class="header-left">
-    <a href="evaluator.html" style="font-size:13px;color:var(--muted);margin-right:6px;">← Λίστα</a>
+<div class="hdr">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <a href="evaluator.html" style="font-size:13px;color:var(--muted);">← Λίστα</a>
     <div>
-      <div class="header-logo">Αξιολόγηση Session</div>
-      <div class="header-sub" id="header-code">Φόρτωση...</div>
+      <div class="hdr-title" id="hdr-title">Αξιολόγηση Session</div>
+      <div class="hdr-sub" id="hdr-code">Φόρτωση...</div>
     </div>
   </div>
-  <div class="user-pill">
-    <div class="user-avatar" id="user-initials"></div>
-    <span id="user-email" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-    <button class="btn sm" id="btn-signout">Έξοδος</button>
+  <div class="hdr-right">
+    <div class="avatar" id="av"></div>
+    <span class="hdr-email" id="umail"></span>
+    <button class="btn sm" id="btn-out">Έξοδος</button>
   </div>
 </div>
 
 <div class="page">
 
-  <div id="load-state" style="text-align:center;padding:3rem;color:var(--muted);">
-    <span class="spinner"></span><br><br>Φόρτωση session...
+  <div id="loading" style="text-align:center;padding:3rem;color:var(--muted);">
+    <span class="spin"></span><br><br>Φόρτωση session...
   </div>
 
-  <div id="eval-area" style="display:none;">
+  <div id="ev-area" style="display:none;">
+
+    <!-- Edit mode banner -->
+    <div id="edit-banner" class="notice n-info" style="display:none;">
+      ✏ <strong>Λειτουργία επεξεργασίας</strong> — Οι παρακάτω απαντήσεις είναι προσυμπληρωμένες με τις τελευταίες απαντήσεις σου. Κάνε τις αλλαγές που θέλεις και πάτα "Ενημέρωση".
+    </div>
 
     <!-- Frozen session fields -->
     <div class="card">
-      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
-        <span>Στοιχεία Session (παγωμένα)</span>
-        <span style="font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0;">🔒 Μόνο ανάγνωση</span>
+      <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Στοιχεία Session</span>
+        <span style="font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0;text-transform:none;">🔒 Παγωμένα πεδία</span>
       </div>
 
-      <div class="two-col">
+      <div class="two">
         <div class="field">
-          <div class="field-label">Creator</div>
+          <div class="fl">Creator</div>
           <div class="pre-val" id="f-creator"></div>
         </div>
         <div class="field">
-          <div class="field-label">Title of the Persona</div>
-          <div class="pre-val" id="f-persona-title"></div>
+          <div class="fl">Title of the Persona</div>
+          <div class="pre-val" id="f-ptitle"></div>
         </div>
       </div>
-
       <div class="field">
-        <div class="field-label">Role of the Persona</div>
+        <div class="fl">Role of the Persona</div>
         <div class="pre-val" id="f-role"></div>
       </div>
-
-      <div class="field" id="f-guidelines-row" style="display:none;">
-        <div class="field-label">Instructional Guidelines</div>
-        <div class="pre-val" id="f-guidelines"></div>
+      <div id="f-guide-row" class="field" style="display:none;">
+        <div class="fl">Instructional Guidelines</div>
+        <div class="pre-val" id="f-guide"></div>
       </div>
-
-           
-      <div class="field">
-        <div class="field-label">Query</div>
-        <div class="pre-val" id="f-query"></div>
-      </div>
-    </div>
-    
-      <div class="two-col">
+      <div class="two">
         <div class="field">
-          <div class="field-label">LLM Title</div>
+          <div class="fl">LLM Title</div>
           <div class="pre-val" id="f-llm-title"></div>
         </div>
         <div class="field">
-          <div class="field-label">Session</div>
-          <div class="pre-val" id="f-code"></div>
+          <div class="fl">Session Code</div>
+          <div class="pre-val" id="f-code" style="font-family:monospace;font-weight:600;letter-spacing:.1em;"></div>
         </div>
       </div>
-
       <div class="field">
-        <div class="field-label">LLM Description</div>
+        <div class="fl">LLM Description</div>
         <div class="pre-val" id="f-llm-desc"></div>
       </div>
+      <div class="field">
+        <div class="fl">Query — ChatGPT Version 1</div>
+        <div class="pre-val" id="f-query"></div>
+      </div>
+    </div>
 
-
-    <!-- Evaluation criteria -->
+    <!-- 10 Criteria -->
     <div class="card">
-      <div class="section-title">Αξιολόγηση — 10 Κριτήρια</div>
+      <div class="sec-title">Αξιολόγηση — 10 Κριτήρια</div>
       <div id="crit-grid"></div>
     </div>
 
     <div id="ev-msg"></div>
     <div class="btn-row">
-      <button class="btn primary" id="ev-submit">Υποβολή Αξιολόγησης ✓</button>
-      <span id="ev-loader" style="display:none;font-size:13px;color:var(--muted);"><span class="spinner"></span> Αποθήκευση...</span>
+      <button class="btn pri" id="ev-submit">Υποβολή Αξιολόγησης ✓</button>
+      <span id="ev-load" style="display:none;font-size:13px;color:var(--muted);">
+        <span class="spin"></span> Αποθήκευση...
+      </span>
     </div>
 
   </div>
 
   <!-- Done -->
   <div id="done-area" style="display:none;">
-    <div class="notice ok" style="font-size:14px;">✓ Η αξιολόγησή σας αποθηκεύτηκε στη Firebase!</div>
+    <div class="notice n-ok" style="font-size:14px;" id="done-msg"></div>
     <div class="card">
-      <div class="section-title">Περίληψη βαθμολογιών</div>
+      <div class="sec-title">Περίληψη βαθμολογιών</div>
       <div id="done-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
     </div>
     <div class="btn-row">
-      <a href="evaluator.html" class="btn primary">← Επιστροφή στη λίστα</a>
+      <a href="evaluator.html" class="btn pri">← Επιστροφή στη λίστα</a>
+      <button class="btn" id="btn-edit-again">✏ Νέα Επεξεργασία</button>
     </div>
   </div>
 
@@ -120,153 +121,217 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
 const db   = firebase.database();
 const $    = id => document.getElementById(id);
-const esc  = s => {const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;};
+const esc  = s => { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; };
 const now  = () => new Date().toLocaleString('el-GR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
 const CRITERIA = [
-  {id:1,  name:"Hallucination Flag",                      opts:["No Hallucination","Minor Hallucination","Major Hallucination","Cannot Determine"]},
-  {id:2,  name:"Query Relevance",                         opts:["Fully Relevant","Mostly Relevant","Partially Relevant","Not Relevant"]},
-  {id:3,  name:"Justification Quality",                   opts:["Excellent","Good","Fair","Poor"]},
-  {id:4,  name:"Evidence Grounding",                      opts:["Well Grounded","Mostly Grounded","Partially Grounded","Ungrounded"]},
-  {id:5,  name:"Clarity",                                 opts:["Very Clear","Clear","Somewhat Clear","Unclear"]},
-  {id:6,  name:"Result Usefulness",                       opts:["Very Useful","Useful","Somewhat Useful","Not Useful"]},
-  {id:7,  name:"Bias",                                    opts:["No Bias","Slight Bias","Moderate Bias","Significant Bias"]},
-  {id:8,  name:"Diversity",                               opts:["High","Moderate","Low","None"]},
-  {id:9,  name:"Completeness / Variety / Representative", opts:["Excellent","Good","Fair","Poor"]},
-  {id:10, name:"Needed Logical Steps",                    opts:["All Present","Mostly Present","Partially Present","Missing"]}
+  {id:1,  name:'Hallucination Flag',                      opts:['No Hallucination','Minor Hallucination','Major Hallucination','Cannot Determine']},
+  {id:2,  name:'Query Relevance',                         opts:['Fully Relevant','Mostly Relevant','Partially Relevant','Not Relevant']},
+  {id:3,  name:'Justification Quality',                   opts:['Excellent','Good','Fair','Poor']},
+  {id:4,  name:'Evidence Grounding',                      opts:['Well Grounded','Mostly Grounded','Partially Grounded','Ungrounded']},
+  {id:5,  name:'Clarity',                                 opts:['Very Clear','Clear','Somewhat Clear','Unclear']},
+  {id:6,  name:'Result Usefulness',                       opts:['Very Useful','Useful','Somewhat Useful','Not Useful']},
+  {id:7,  name:'Bias',                                    opts:['No Bias','Slight Bias','Moderate Bias','Significant Bias']},
+  {id:8,  name:'Diversity',                               opts:['High','Moderate','Low','None']},
+  {id:9,  name:'Completeness / Variety / Representative', opts:['Excellent','Good','Fair','Poor']},
+  {id:10, name:'Needed Logical Steps',                    opts:['All Present','Mostly Present','Partially Present','Missing']}
 ];
 
-let eRatings = {}, eComments = {};
-const sessionCode = new URLSearchParams(window.location.search).get('session');
+let eRatings   = {};
+let eComments  = {};
+let isEditMode = false;
+let existingEvalKey = null;
+const sessionCode = new URLSearchParams(location.search).get('session');
 
-function setMsg(msg, type='err'){
+function setMsg(msg, type='n-err'){
   $('ev-msg').innerHTML = msg ? `<div class="notice ${type}" style="margin-top:.75rem;">${msg}</div>` : '';
 }
 
-// Auth guard
-auth.onAuthStateChanged(async user => {
-  if(!user){ window.location.href='index.html'; return; }
-  const name = user.displayName || user.email;
-  $('user-email').textContent = user.email;
-  $('user-initials').textContent = name.trim().split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-
+auth.onAuthStateChanged(async u => {
+  if(!u){ location.href='index.html'; return; }
+  const name = u.displayName || u.email;
+  $('umail').textContent = u.email;
+  $('av').textContent    = name.trim().split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
   if(!sessionCode){
-    $('load-state').innerHTML='<div class="notice err">Δεν βρέθηκε κωδικός session στο URL.</div>';
+    $('loading').innerHTML = `<div class="notice n-err">Δεν βρέθηκε κωδικός session στο URL.</div>`;
     return;
   }
-  loadSession();
+  loadSession(u);
 });
 
-$('btn-signout').addEventListener('click', async()=>{ await auth.signOut(); window.location.href='index.html'; });
+$('btn-out').addEventListener('click', async () => { await auth.signOut(); location.href='index.html'; });
 
-async function loadSession(){
+async function loadSession(user){
   try{
     const snap = await db.ref('sessions/'+sessionCode).get();
     if(!snap.exists()){
-      $('load-state').innerHTML=`<div class="notice err">Το session <strong>${esc(sessionCode)}</strong> δεν βρέθηκε.</div>`;
+      $('loading').innerHTML = `<div class="notice n-err">Το session <strong>${esc(sessionCode)}</strong> δεν βρέθηκε.</div>`;
       return;
     }
     const s = snap.val();
-    $('header-code').textContent = `Session: ${sessionCode} · ${s.llmTitle||''}`;
-    $('f-creator').textContent      = s.creator || '—';
-    $('f-persona-title').textContent= s.personaTitle || '—';
-    $('f-role').textContent         = s.personaRole || '—';
-    $('f-llm-title').textContent    = s.llmTitle || '—';
-    $('f-llm-desc').textContent     = s.llmDescription || '—';
-    $('f-query').textContent        = s.query || '—';
-    $('f-code').textContent         = sessionCode;
+
+    // Fill frozen fields
+    $('hdr-code').textContent      = `Session: ${sessionCode} · ${s.llmTitle||''}`;
+    $('f-creator').textContent     = s.creator       || '—';
+    $('f-ptitle').textContent      = s.personaTitle  || '—';
+    $('f-role').textContent        = s.personaRole   || '—';
+    $('f-llm-title').textContent   = s.llmTitle      || '—';
+    $('f-llm-desc').textContent    = s.llmDescription|| '—';
+    $('f-query').textContent       = s.query         || '—';
+    $('f-code').textContent        = sessionCode;
     if(s.guidelines){
-      $('f-guidelines').textContent = s.guidelines;
-      $('f-guidelines-row').style.display = '';
+      $('f-guide').textContent       = s.guidelines;
+      $('f-guide-row').style.display = '';
     }
-    buildCriteria();
-    $('load-state').style.display = 'none';
-    $('eval-area').style.display  = 'block';
+
+    // Check if user already has an evaluation
+    let existingEval = null;
+    if(s.evaluations){
+      const entries = Object.entries(s.evaluations);
+      const found   = entries.find(([, ev]) => ev.evaluatorUid === user.uid);
+      if(found){
+        existingEvalKey = found[0];
+        existingEval    = found[1];
+        isEditMode      = true;
+      }
+    }
+
+    // Update UI for edit mode
+    if(isEditMode){
+      $('hdr-title').textContent        = 'Επεξεργασία Αξιολόγησης';
+      $('edit-banner').style.display    = 'block';
+      $('ev-submit').textContent        = 'Ενημέρωση Αξιολόγησης ✓';
+      $('ev-submit').style.background   = '#178a61';
+      $('ev-submit').style.borderColor  = '#178a61';
+    }
+
+    buildCriteria(existingEval);
+    $('loading').style.display = 'none';
+    $('ev-area').style.display = 'block';
+
   }catch(e){
-    $('load-state').innerHTML=`<div class="notice err">Σφάλμα φόρτωσης: ${esc(e.message)}</div>`;
+    $('loading').innerHTML = `<div class="notice n-err">Σφάλμα φόρτωσης: ${esc(e.message)}</div>`;
   }
 }
 
-function buildCriteria(){
-  eRatings={}; eComments={};
-  $('crit-grid').innerHTML = CRITERIA.map(c=>`
-    <div class="crit-card">
-      <div class="crit-hdr">
-        <div class="crit-num">${c.id}</div>
-        <div class="crit-name">${esc(c.name)}</div>
-      </div>
-      <div class="mc-group">
-        ${c.opts.map(o=>`<button class="mc-opt" data-crit="${c.id}" data-val="${esc(o)}">${esc(o)}</button>`).join('')}
-      </div>
-      <div class="err-msg" id="cerr-${c.id}" style="display:none;">Επιλέξτε μια απάντηση</div>
-      <textarea class="fi" rows="2" placeholder="Σχόλια (προαιρετικά)..." data-comment="${c.id}" style="margin-top:4px;"></textarea>
-    </div>`).join('');
+function buildCriteria(existingEval){
+  eRatings  = {};
+  eComments = {};
 
-  document.querySelectorAll('.mc-opt').forEach(b=>{
-    b.addEventListener('click',()=>{
-      const cid = parseInt(b.dataset.crit);
-      eRatings[cid] = b.dataset.val;
-      document.querySelectorAll(`.mc-opt[data-crit="${cid}"]`).forEach(x=>x.classList.remove('sel','err-ring'));
+  // Pre-fill from existing evaluation if in edit mode
+  if(existingEval){
+    CRITERIA.forEach(c => {
+      if(existingEval.ratings  && existingEval.ratings[c.id])  eRatings[c.id]  = existingEval.ratings[c.id];
+      if(existingEval.comments && existingEval.comments[c.id]) eComments[c.id] = existingEval.comments[c.id];
+    });
+  }
+
+  $('crit-grid').innerHTML = CRITERIA.map(c => {
+    const selectedVal  = eRatings[c.id]  || null;
+    const commentVal   = eComments[c.id] || '';
+    return `
+    <div class="cc">
+      <div class="ch"><div class="cn">${c.id}</div><div class="cname">${esc(c.name)}</div></div>
+      <div class="mcg">
+        ${c.opts.map(o => `
+          <button class="mco${selectedVal===o?' sel':''}" data-c="${c.id}" data-v="${esc(o)}">${esc(o)}</button>
+        `).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--red);display:none;" id="cerr-${c.id}">Επιλέξτε μια απάντηση</div>
+      <textarea class="fi" rows="2" placeholder="Σχόλια (προαιρετικά)..." data-cm="${c.id}" style="margin-top:5px;">${esc(commentVal)}</textarea>
+    </div>`;
+  }).join('');
+
+  // Bind MC option clicks
+  document.querySelectorAll('.mco').forEach(b => {
+    b.addEventListener('click', () => {
+      const cid = parseInt(b.dataset.c);
+      eRatings[cid] = b.dataset.v;
+      document.querySelectorAll(`.mco[data-c="${cid}"]`).forEach(x => x.classList.remove('sel','er'));
       b.classList.add('sel');
-      $('cerr-'+cid).style.display='none';
+      $('cerr-'+cid).style.display = 'none';
     });
   });
-  document.querySelectorAll('[data-comment]').forEach(ta=>{
-    ta.addEventListener('input', e=>{
-      eComments[parseInt(e.target.dataset.comment)] = e.target.value;
+
+  // Bind comment fields
+  document.querySelectorAll('[data-cm]').forEach(ta => {
+    ta.addEventListener('input', e => {
+      eComments[parseInt(e.target.dataset.cm)] = e.target.value;
     });
   });
 }
 
-$('ev-submit').addEventListener('click', async()=>{
+$('ev-submit').addEventListener('click', async () => {
   setMsg('');
+
   // Validate all criteria
   let valid = true;
-  CRITERIA.forEach(c=>{
+  CRITERIA.forEach(c => {
     if(!eRatings[c.id]){
-      $('cerr-'+c.id).style.display='block';
-      document.querySelectorAll(`.mc-opt[data-crit="${c.id}"]`).forEach(b=>b.classList.add('err-ring'));
-      valid=false;
+      $('cerr-'+c.id).style.display = 'block';
+      document.querySelectorAll(`.mco[data-c="${c.id}"]`).forEach(b => b.classList.add('er'));
+      valid = false;
     }
   });
   if(!valid){ setMsg('Συμπλήρωσε όλα τα κριτήρια.'); return; }
 
-  const user = auth.currentUser;
+  const u = auth.currentUser;
   const payload = {
-    evaluator:      user.displayName || user.email,
-    evaluatorEmail: user.email,
-    evaluatorUid:   user.uid,
+    evaluator:      u.displayName || u.email,
+    evaluatorEmail: u.email,
+    evaluatorUid:   u.uid,
     timestamp:      now(),
+    lastEdited:     isEditMode ? now() : null,
     ratings:        {},
     comments:       {}
   };
-  CRITERIA.forEach(c=>{
+  CRITERIA.forEach(c => {
     payload.ratings[c.id]  = eRatings[c.id]  || '';
     payload.comments[c.id] = eComments[c.id] || '';
   });
 
-  $('ev-submit').style.display='none';
-  $('ev-loader').style.display='';
+  $('ev-submit').style.display = 'none';
+  $('ev-load').style.display   = '';
 
   try{
-    await db.ref('sessions/'+sessionCode+'/evaluations').push(payload);
-    $('ev-submit').style.display='';
-    $('ev-loader').style.display='none';
+    if(isEditMode && existingEvalKey){
+      // UPDATE existing evaluation
+      await db.ref('sessions/'+sessionCode+'/evaluations/'+existingEvalKey).set(payload);
+      $('done-msg').innerHTML = '✓ Η αξιολόγησή σας <strong>ενημερώθηκε</strong> επιτυχώς!';
+    } else {
+      // CREATE new evaluation
+      await db.ref('sessions/'+sessionCode+'/evaluations').push(payload);
+      $('done-msg').innerHTML = '✓ Η αξιολόγησή σας αποθηκεύτηκε επιτυχώς!';
+    }
 
-    // Show summary
-    $('done-grid').innerHTML = CRITERIA.map(c=>`
+    $('done-grid').innerHTML = CRITERIA.map(c => `
       <div style="background:var(--bg);border-radius:6px;padding:7px 10px;">
         <div style="font-size:10px;color:var(--muted);margin-bottom:1px;">${esc(c.name)}</div>
         <div style="font-size:12px;font-weight:500;">${esc(eRatings[c.id]||'—')}</div>
       </div>`).join('');
 
-    $('eval-area').style.display='none';
-    $('done-area').style.display='block';
+    $('ev-area').style.display   = 'none';
+    $('done-area').style.display = 'block';
+
   }catch(e){
-    $('ev-submit').style.display='';
-    $('ev-loader').style.display='none';
+    $('ev-submit').style.display = '';
+    $('ev-load').style.display   = 'none';
     setMsg('Σφάλμα αποθήκευσης: '+e.message);
   }
+});
+
+// Allow editing again from done screen
+$('btn-edit-again').addEventListener('click', () => {
+  $('done-area').style.display = 'none';
+  $('ev-area').style.display   = 'block';
+  isEditMode      = true;
+  $('ev-submit').textContent       = 'Ενημέρωση Αξιολόγησης ✓';
+  $('ev-submit').style.background  = '#178a61';
+  $('ev-submit').style.borderColor = '#178a61';
+  $('ev-submit').style.display     = '';
+  $('ev-load').style.display       = 'none';
+  $('edit-banner').style.display   = 'block';
+  setMsg('');
 });
 </script>
 </body>
