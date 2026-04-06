@@ -18,7 +18,7 @@ Multi-page web application with Firebase Authentication and Realtime Database. H
 
 ---
 
-## User Flow
+## User Flow:
 
 ```
 index.html  →  role.html  →  creator.html
