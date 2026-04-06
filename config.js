@@ -4,11 +4,11 @@
 // ╚══════════════════════════════════════════════════════╝
 
 const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  databaseURL:       "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  apiKey: "AIzaSyA_aHBdW2p5BwfZZhwYK99ybWr2aOPS8fs",
+  authDomain: "cultureboteval.firebaseapp.com",
+  databaseURL: "https://cultureboteval-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "cultureboteval",
+  storageBucket: "cultureboteval.firebasestorage.app",
+  messagingSenderId: "463119543508",
+  appId: "1:463119543508:web:581f7336399af2d7de1f41"
 };
