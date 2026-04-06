@@ -2,8 +2,7 @@
 // ║  ΒΑΛΕ ΕΔΩ ΤΑ ΣΤΟΙΧΕΙΑ ΑΠΟ ΤΟ FIREBASE CONSOLE       ║
 // ║  Project Settings →      Your apps → Web app → Config     ║
 // ╚══════════════════════════════════════════════════════╝
-
-const firebaseConfig = {
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyA_aHBdW2p5BwfZZhwYK99ybWr2aOPS8fs",
   authDomain: "cultureboteval.firebaseapp.com",
   databaseURL: "https://cultureboteval-default-rtdb.europe-west1.firebasedatabase.app",
