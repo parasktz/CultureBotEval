@@ -71,7 +71,9 @@
       </div>
       <div class="field">
         <div class="fl">Query — ChatGPT Version 1</div>
-        <div class="pre-val" id="f-query"></div>
+        <div class="pre-val" id="f-query" style="padding:10px 12px;">
+          <span style="font-weight:500;color:var(--blue-t);">Query: </span><span id="f-query-text"></span>
+        </div>
       </div>
     </div>
 
@@ -164,7 +166,7 @@ async function loadSession(){
     $('f-role').textContent      = s.personaRole   || '—';
     $('f-llm-title').textContent = s.llmTitle      || '—';
     $('f-llm-desc').textContent  = s.llmDescription|| '—';
-    $('f-query').textContent     = s.query         || '—';
+    $('f-query-text').textContent = s.query         || '—';
     $('f-code').textContent      = sessionCode;
     if(s.guidelines){
       $('f-guide').textContent       = s.guidelines;
