@@ -85,7 +85,7 @@ async function loadSessions(){
         </td>
         <td style="max-width:260px;">
           <div style="font-size:13px;color:var(--text);">${esc(queryShort)}</div>
-          <div class="td-muted">${esc(s.createdAt||'')} · ${esc(s.creator||'')} · ${evalCount} αξιολόγηση${evalCount!==1?'ες':''}</div>
+          <div class="td-muted">${esc(s.createdAt||'')} · ${esc(s.creator||'')} · ${evalCount} αξιολόγησ${evalCount!==1?'εις':''}</div>
         </td>
         <td>
           <a href="evaluation.html?session=${esc(code)}" class="btn sm primary">Αξιολόγηση →</a>
