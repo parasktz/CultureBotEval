@@ -5,6 +5,38 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Persona Evaluation — Evaluator</title>
 <link rel="stylesheet" href="styles.css"/>
+<style>
+.sess-card{background:var(--card);border:.5px solid var(--border);border-radius:var(--r);margin-bottom:1rem;overflow:hidden;}
+.sess-head{padding:1rem 1.25rem;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.sess-info{flex:1;min-width:0;}
+.sess-title{font-size:15px;font-weight:500;margin-bottom:3px;}
+.sess-meta{font-size:12px;color:var(--muted);line-height:1.6;}
+.sess-actions{display:flex;gap:8px;align-items:center;flex-shrink:0;}
+.divider{height:.5px;background:var(--border);margin:0;}
+
+/* My evaluations section */
+.my-evals{background:var(--bg);border-top:.5px solid var(--border);}
+.my-evals-header{padding:.6rem 1.25rem;font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+.eval-item{background:var(--card);border-top:.5px solid var(--border);padding:.85rem 1.25rem;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.eval-item:first-of-type{border-top:.5px solid var(--border);}
+.eval-scores{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;}
+.score-chip{font-size:10px;background:var(--blue-bg);color:var(--blue-t);border-radius:4px;padding:2px 7px;}
+.eval-ts{font-size:11px;color:var(--muted);}
+.eval-edited{font-size:10px;color:var(--amber-t);background:var(--amber-bg);border-radius:4px;padding:1px 6px;margin-left:6px;}
+
+/* Inline edit form */
+.edit-form{background:var(--bg);border-top:.5px solid var(--border);padding:1.25rem;}
+.edit-form-title{font-size:13px;font-weight:500;margin-bottom:1rem;display:flex;align-items:center;gap:8px;}
+.mini-cc{border:.5px solid var(--border);border-radius:var(--rsm);padding:.75rem 1rem;margin-bottom:.6rem;background:var(--card);}
+.mini-ch{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.mini-cn{width:20px;height:20px;border-radius:50%;background:var(--blue-bg);color:var(--blue-t);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mini-cname{font-size:12px;font-weight:500;}
+.mini-mcg{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;}
+.mini-mco{padding:3px 10px;border-radius:20px;border:.5px solid var(--border2);font-size:11px;cursor:pointer;background:transparent;color:var(--text);font-family:inherit;transition:all .15s;}
+.mini-mco:hover{background:var(--card);}
+.mini-mco.sel{border-color:var(--blue);background:var(--blue-bg);color:var(--blue-t);font-weight:500;}
+.mini-mco.er{border-color:var(--red);}
+</style>
 </head>
 <body>
 
@@ -13,7 +45,7 @@
     <a href="role.html" style="font-size:13px;color:var(--muted);">← Πίσω</a>
     <div>
       <div class="hdr-title">Evaluator</div>
-      <div class="hdr-sub">Επίλεξε session για αξιολόγηση</div>
+      <div class="hdr-sub">Sessions & Αξιολογήσεις</div>
     </div>
   </div>
   <div class="hdr-right">
@@ -24,21 +56,18 @@
 </div>
 
 <div class="page">
-
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px;">
     <div>
       <div style="font-size:18px;font-weight:500;">Sessions</div>
-      <div style="font-size:13px;color:var(--muted);margin-top:2px;">Επίλεξε ένα session για αξιολόγηση ή επεξεργασία.</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:2px;">Κάθε session εμφανίζει τις αξιολογήσεις σου. Μπορείς να επεξεργαστείς οποιαδήποτε.</div>
     </div>
     <button class="btn sm" id="btn-refresh">↻ Ανανέωση</button>
   </div>
-
   <div id="body">
     <div style="text-align:center;padding:3rem;color:var(--muted);">
       <span class="spin"></span><br><br>Φόρτωση sessions...
     </div>
   </div>
-
 </div>
 
 <script src="config.js"></script>
@@ -51,12 +80,28 @@ const auth = firebase.auth();
 const db   = firebase.database();
 const $    = id => document.getElementById(id);
 const esc  = s => { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; };
+const now  = () => new Date().toLocaleString('el-GR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-let currentUid = null;
+const CRITERIA = [
+  {id:1,  name:'Hallucination Flag',                      opts:['No Hallucination','Minor Hallucination','Major Hallucination','Cannot Determine']},
+  {id:2,  name:'Query Relevance',                         opts:['Fully Relevant','Mostly Relevant','Partially Relevant','Not Relevant']},
+  {id:3,  name:'Justification Quality',                   opts:['Excellent','Good','Fair','Poor']},
+  {id:4,  name:'Evidence Grounding',                      opts:['Well Grounded','Mostly Grounded','Partially Grounded','Ungrounded']},
+  {id:5,  name:'Clarity',                                 opts:['Very Clear','Clear','Somewhat Clear','Unclear']},
+  {id:6,  name:'Result Usefulness',                       opts:['Very Useful','Useful','Somewhat Useful','Not Useful']},
+  {id:7,  name:'Bias',                                    opts:['No Bias','Slight Bias','Moderate Bias','Significant Bias']},
+  {id:8,  name:'Diversity',                               opts:['High','Moderate','Low','None']},
+  {id:9,  name:'Completeness / Variety / Representative', opts:['Excellent','Good','Fair','Poor']},
+  {id:10, name:'Needed Logical Steps',                    opts:['All Present','Mostly Present','Partially Present','Missing']}
+];
+
+let currentUser = null;
+// State: { [sessionCode_evalKey]: { ratings, comments } }
+let editState = {};
 
 auth.onAuthStateChanged(u => {
   if(!u){ location.href='index.html'; return; }
-  currentUid = u.uid;
+  currentUser = u;
   const name = u.displayName || u.email;
   $('umail').textContent = u.email;
   $('av').textContent    = name.trim().split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
@@ -77,52 +122,188 @@ async function load(){
     const data    = snap.val();
     const entries = Object.entries(data).reverse();
 
-    const rows = entries.map(([code, s]) => {
-      const q = (s.query||'').length > 80 ? s.query.substring(0,80)+'…' : (s.query||'—');
-      const evals = s.evaluations ? Object.entries(s.evaluations) : [];
-      const myEval = evals.find(([, ev]) => ev.evaluatorUid === currentUid);
-      const totalCount = evals.length;
-
-      const statusBadge = myEval
-        ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#E1F5EE;color:#085041;font-size:11px;border-radius:4px;padding:2px 8px;">✓ Έχεις αξιολογήσει</span>`
-        : `<span style="display:inline-flex;align-items:center;gap:4px;background:#FAEEDA;color:#7a4a08;font-size:11px;border-radius:4px;padding:2px 8px;">— Εκκρεμεί</span>`;
-
-      const actionBtn = myEval
-        ? `<a href="evaluation.html?session=${esc(code)}" class="btn sm" style="border-color:var(--green-t);color:var(--green-t);">✏ Επεξεργασία</a>`
-        : `<a href="evaluation.html?session=${esc(code)}" class="btn sm pri">Αξιολόγηση →</a>`;
-
-      return `<tr>
-        <td>
-          <span class="td-code">${esc(code)}</span>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(s.createdAt||'')} · ${esc(s.creator||'')} · ${totalCount} αξιολόγηση${totalCount!==1?'ες':''}</div>
-        </td>
-        <td style="max-width:240px;">${esc(q)}</td>
-        <td>
-          <div style="font-weight:500;">${esc(s.llmTitle||'—')}</div>
-          <div style="font-size:11px;color:var(--muted);">${esc(s.personaTitle||'')}</div>
-        </td>
-        <td>${statusBadge}</td>
-        <td>${actionBtn}</td>
-      </tr>`;
-    }).join('');
-
-    $('body').innerHTML = `
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr>
-            <th>Κωδικός Session</th>
-            <th>Query</th>
-            <th>LLM</th>
-            <th>Κατάσταση</th>
-            <th></th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+    const html = entries.map(([code, s]) => renderSessionCard(code, s)).join('');
+    $('body').innerHTML = html;
+    bindAll();
   }catch(e){
     $('body').innerHTML = `<div class="notice n-err">Σφάλμα φόρτωσης: ${esc(e.message)}</div>`;
   }
 }
+
+function renderSessionCard(code, s){
+  const q      = (s.query||'').length>100 ? s.query.substring(0,100)+'…' : (s.query||'—');
+  const allEvals   = s.evaluations ? Object.entries(s.evaluations) : [];
+  const myEvals    = allEvals.filter(([, ev]) => ev.evaluatorUid === currentUser.uid);
+  const totalCount = allEvals.length;
+
+  // My evaluations list
+  let myEvalsHtml = '';
+  if(myEvals.length > 0){
+    const items = myEvals.map(([key, ev]) => {
+      const topScores = CRITERIA.slice(0,4).map(c =>
+        `<span class="score-chip">${c.id}. ${esc(ev.ratings&&ev.ratings[c.id]?ev.ratings[c.id]:'—')}</span>`
+      ).join('');
+      const editedBadge = ev.lastEdited
+        ? `<span class="eval-edited">επεξεργάστηκε ${esc(ev.lastEdited)}</span>` : '';
+      return `
+        <div class="eval-item" id="eval-item-${esc(code)}-${esc(key)}">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:500;">${esc(ev.evaluator||'—')}</div>
+            <div class="eval-ts">${esc(ev.timestamp||'')}${editedBadge}</div>
+            <div class="eval-scores">${topScores}</div>
+          </div>
+          <button class="btn sm" onclick="toggleEdit('${esc(code)}','${esc(key)}')">✏ Επεξεργασία</button>
+        </div>
+        <div id="edit-form-${esc(code)}-${esc(key)}" class="edit-form" style="display:none;">
+          ${renderEditForm(code, key, ev)}
+        </div>`;
+    }).join('');
+    myEvalsHtml = `
+      <div class="my-evals">
+        <div class="my-evals-header">Οι αξιολογήσεις μου για αυτό το session</div>
+        ${items}
+      </div>`;
+  }
+
+  return `
+    <div class="sess-card" id="sess-${esc(code)}">
+      <div class="sess-head">
+        <div class="sess-info">
+          <div class="sess-title">${esc(s.llmTitle||'—')} <span style="font-size:12px;font-weight:400;color:var(--muted);">· ${esc(s.personaTitle||'')}</span></div>
+          <div class="sess-meta">
+            <span style="font-family:monospace;font-weight:600;color:var(--blue-t);">${esc(code)}</span>
+            &nbsp;·&nbsp; ${esc(s.creator||'')}
+            &nbsp;·&nbsp; ${esc(s.createdAt||'')}
+            &nbsp;·&nbsp; ${totalCount} αξιολόγηση${totalCount!==1?'ες':''}
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;max-width:540px;">${esc(q)}</div>
+        </div>
+        <div class="sess-actions">
+          <a href="evaluation.html?session=${esc(code)}" class="btn sm pri">+ Νέα Αξιολόγηση</a>
+        </div>
+      </div>
+      ${myEvalsHtml}
+    </div>`;
+}
+
+function renderEditForm(sessionCode, evalKey, ev){
+  const stateKey = sessionCode+'__'+evalKey;
+  // Init state from existing eval
+  if(!editState[stateKey]){
+    editState[stateKey] = {
+      ratings:  Object.assign({}, ev.ratings  || {}),
+      comments: Object.assign({}, ev.comments || {})
+    };
+  }
+  const state = editState[stateKey];
+
+  const criteriaHtml = CRITERIA.map(c => {
+    const sel     = state.ratings[c.id]  || null;
+    const comment = state.comments[c.id] || '';
+    return `
+      <div class="mini-cc">
+        <div class="mini-ch"><div class="mini-cn">${c.id}</div><div class="mini-cname">${esc(c.name)}</div></div>
+        <div class="mini-mcg">
+          ${c.opts.map(o => `
+            <button class="mini-mco${sel===o?' sel':''}"
+              data-sk="${esc(stateKey)}" data-cid="${c.id}" data-val="${esc(o)}"
+              onclick="setRating('${esc(stateKey)}',${c.id},'${esc(o)}',this)">${esc(o)}</button>
+          `).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--red);display:none;" id="merr-${esc(stateKey)}-${c.id}">Επιλέξτε</div>
+        <textarea class="fi" rows="2" placeholder="Σχόλια..." style="font-size:12px;margin-top:4px;"
+          onchange="setComment('${esc(stateKey)}',${c.id},this.value)">${esc(comment)}</textarea>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="edit-form-title">✏ Επεξεργασία αξιολόγησης <span style="font-size:11px;color:var(--muted);font-weight:400;">${esc(ev.timestamp||'')}</span></div>
+    ${criteriaHtml}
+    <div id="emsg-${esc(stateKey)}" style="margin:.5rem 0;"></div>
+    <div class="btn-row">
+      <button class="btn pri" style="background:var(--green);border-color:var(--green);"
+        onclick="saveEdit('${esc(sessionCode)}','${esc(evalKey)}','${esc(stateKey)}')">Αποθήκευση αλλαγών ✓</button>
+      <button class="btn" onclick="toggleEdit('${esc(sessionCode)}','${esc(evalKey)}')">Ακύρωση</button>
+      <span id="eload-${esc(stateKey)}" style="display:none;font-size:13px;color:var(--muted);">
+        <span class="spin"></span> Αποθήκευση...
+      </span>
+    </div>`;
+}
+
+function bindAll(){
+  // nothing extra needed — all handlers are inline
+}
+
+window.toggleEdit = function(code, key){
+  const form = $(`edit-form-${code}-${key}`);
+  if(!form) return;
+  const isOpen = form.style.display !== 'none';
+  form.style.display = isOpen ? 'none' : 'block';
+};
+
+window.setRating = function(stateKey, cid, val, btn){
+  if(!editState[stateKey]) return;
+  editState[stateKey].ratings[cid] = val;
+  // Update UI
+  document.querySelectorAll(`.mini-mco[data-sk="${stateKey}"][data-cid="${cid}"]`).forEach(b => {
+    b.classList.toggle('sel', b.dataset.val === val);
+    b.classList.remove('er');
+  });
+  const errEl = $(`merr-${stateKey}-${cid}`);
+  if(errEl) errEl.style.display='none';
+};
+
+window.setComment = function(stateKey, cid, val){
+  if(!editState[stateKey]) return;
+  editState[stateKey].comments[cid] = val;
+};
+
+window.saveEdit = async function(sessionCode, evalKey, stateKey){
+  const state   = editState[stateKey];
+  if(!state) return;
+
+  // Validate
+  let valid = true;
+  CRITERIA.forEach(c => {
+    if(!state.ratings[c.id]){
+      const errEl = $(`merr-${stateKey}-${c.id}`);
+      if(errEl) errEl.style.display='block';
+      document.querySelectorAll(`.mini-mco[data-sk="${stateKey}"][data-cid="${c.id}"]`)
+        .forEach(b => b.classList.add('er'));
+      valid = false;
+    }
+  });
+  if(!valid){
+    const msgEl = $(`emsg-${stateKey}`);
+    if(msgEl) msgEl.innerHTML=`<div class="notice n-err">Συμπλήρωσε όλα τα κριτήρια.</div>`;
+    return;
+  }
+
+  const loadEl = $(`eload-${stateKey}`);
+  if(loadEl) loadEl.style.display='';
+
+  const u = currentUser;
+  const payload = {
+    evaluator:      u.displayName || u.email,
+    evaluatorEmail: u.email,
+    evaluatorUid:   u.uid,
+    timestamp:      (await db.ref('sessions/'+sessionCode+'/evaluations/'+evalKey+'/timestamp').get()).val() || now(),
+    lastEdited:     now(),
+    ratings:        state.ratings,
+    comments:       state.comments
+  };
+
+  try{
+    await db.ref('sessions/'+sessionCode+'/evaluations/'+evalKey).set(payload);
+    if(loadEl) loadEl.style.display='none';
+    // Reload to reflect changes
+    await load();
+  }catch(e){
+    if(loadEl) loadEl.style.display='none';
+    const msgEl = $(`emsg-${stateKey}`);
+    if(msgEl) msgEl.innerHTML=`<div class="notice n-err">Σφάλμα: ${esc(e.message)}</div>`;
+  }
+};
 </script>
 </body>
 </html>
