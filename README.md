@@ -31,7 +31,7 @@ index.html  →  role.html  →  evaluator.html  →  evaluation.html?session=CO
 ---
 
 
-## Evaluation Criteria (10)
+## Evaluation Criteria (10):
 
 | # | Criterion | Options |
 |---|-----------|---------|
