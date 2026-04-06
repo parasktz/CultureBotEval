@@ -4,20 +4,6 @@ Multi-page web application with Firebase Authentication and Realtime Database. H
 
 ---  
     
-## File Structure:
-
-```
-├── config.js        ← Firebase config (you fill this once)
-├── styles.css       ← Shared styles for all pages
-├── index.html       ← Sign In / Sign Up (email + Google)
-├── role.html        ← Role selection (Creator or Evaluator)
-├── creator.html     ← Creator form — creates evaluation sessions
-├── evaluator.html   ← Evaluator home — table of available sessions
-└── evaluation.html  ← Per-session evaluation form (10 criteria)
-```
-
----
-
 ## User Flow:
 
 ```
