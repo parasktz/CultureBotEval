@@ -1,4 +1,4 @@
-# Persona Evaluation System
+# CultureBot Evaluation System
 
 Multi-page web application with Firebase Authentication and Realtime Database. Hosted on GitHub Pages — no server required.
 
