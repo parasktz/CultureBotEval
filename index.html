@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Persona Evaluation System</title>
+<style>
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f0;
+    --bg-info: #E6F1FB;
+    --text-primary: #1a1a18;
+    --text-secondary: #6b6b66;
+    --border: rgba(0,0,0,0.12);
+    --border-md: rgba(0,0,0,0.22);
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --blue: #378ADD;
+    --blue-dark: #185FA5;
+    --blue-light: #E6F1FB;
+    --blue-text: #0C447C;
+    --green: #1D9E75;
+    --green-light: #E1F5EE;
+    --green-text: #085041;
+    --amber-light: #FAEEDA;
+    --amber-text: #854F0B;
+    --red: #E24B4A;
+    --red-light: #FCEBEB;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-primary: #1e1e1c;
+      --bg-secondary: #2a2a28;
+      --bg-info: #0c2a42;
+      --text-primary: #e8e6de;
+      --text-secondary: #9c9a92;
+      --border: rgba(255,255,255,0.1);
+      --border-md: rgba(255,255,255,0.2);
+      --blue-light: #0c2a42;
+      --blue-text: #85B7EB;
+      --green-light: #04342C;
+      --green-text: #9FE1CB;
+      --amber-light: #412402;
+      --amber-text: #FAC775;
+      --red-light: #501313;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 2rem 1rem 4rem;
+  }
+  .w { max-width: 740px; margin: 0 auto; }
+  .app-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .app-header h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .app-header p  { font-size: 14px; color: var(--text-secondary); }
+  .card {
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .page-title  { font-size: 20px; font-weight: 500; margin-bottom: .25rem; }
+  .page-sub    { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
+  .mode-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 1rem; }
+  .mode-card   {
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    cursor: pointer;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .mode-card:hover { border-color: var(--blue); }
+  .mode-card .icon { font-size: 26px; margin-bottom: .5rem; }
+  .mode-card h3  { font-size: 15px; font-weight: 500; margin-bottom: .25rem; }
+  .mode-card p   { font-size: 13px; color: var(--text-secondary); }
+  .prog          { display: flex; gap: 5px; margin-bottom: 1.5rem; align-items: center; }
+  .ps            { flex: 1; height: 4px; border-radius: 2px; background: var(--border); transition: background .3s; }
+  .ps.done       { background: var(--green); }
+  .ps.active     { background: var(--blue); }
+  .prog-lbl      { font-size: 12px; color: var(--text-secondary); white-space: nowrap; margin-left: 8px; }
+  .step-tag      { font-size: 11px; color: var(--text-secondary); letter-spacing: .07em; text-transform: uppercase; margin-bottom: .25rem; }
+  .step-title    { font-size: 17px; font-weight: 500; margin-bottom: .25rem; }
+  .step-desc     { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; }
+  .field         { margin-bottom: 1rem; }
+  .field-label   { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .badge-pre     { font-size: 10px; background: var(--green-light); color: var(--green-text); border-radius: 4px; padding: 1px 6px; }
+  .badge-fill    { font-size: 10px; background: var(--blue-light); color: var(--blue-text); border-radius: 4px; padding: 1px 6px; }
+  .badge-opt     { font-size: 10px; background: var(--amber-light); color: var(--amber-text); border-radius: 4px; padding: 1px 6px; }
+  .pre-val       { background: var(--bg-secondary); border: 0.5px solid var(--border); border-radius: var(--radius-md); padding: 8px 12px; font-size: 14px; color: var(--text-primary); white-space: pre-wrap; min-height: 36px; }
+  input.fi, textarea.fi, select.fi {
+    width: 100%; border: 0.5px solid var(--border-md);
+    border-radius: var(--radius-md); padding: 8px 12px;
+    font-size: 14px; color: var(--text-primary);
+    background: var(--bg-primary); font-family: inherit; resize: vertical;
+  }
+  input.fi:focus, textarea.fi:focus, select.fi:focus {
+    outline: none; border-color: var(--blue);
+    box-shadow: 0 0 0 2px rgba(55,138,221,.15);
+  }
+  .fi.err        { border-color: var(--red); }
+  .err-msg       { font-size: 11px; color: var(--red); margin-top: 3px; }
+  .crit-card     {
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: .9rem;
+    background: var(--bg-primary);
+  }
+  .crit-hdr      { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+  .crit-num      {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--blue-light); color: var(--blue-text);
+    font-size: 11px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .crit-name     { font-size: 14px; font-weight: 500; }
+  .mc-group      { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 9px; }
+  .mc-opt        {
+    padding: 5px 12px; border-radius: 20px;
+    border: 0.5px solid var(--border-md);
+    font-size: 12px; cursor: pointer;
+    background: transparent; color: var(--text-primary);
+    transition: all .15s; font-family: inherit;
+  }
+  .mc-opt:hover  { background: var(--bg-secondary); }
+  .mc-opt.sel    { border-color: var(--blue); background: var(--blue-light); color: var(--blue-text); font-weight: 500; }
+  .mc-opt.err-ring { border-color: var(--red); }
+  .actions       { display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem; }
+  button {
+    font-family: inherit; font-size: 14px; padding: 8px 20px;
+    border-radius: var(--radius-md); cursor: pointer;
+    border: 0.5px solid var(--border-md);
+    background: transparent; color: var(--text-primary);
+    transition: background .15s;
+  }
+  button:hover   { background: var(--bg-secondary); }
+  button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  button.primary:hover { background: var(--blue-dark); border-color: var(--blue-dark); }
+  button.danger  { border-color: var(--red); color: var(--red); }
+  button.danger:hover { background: var(--red-light); }
+  .json-pre {
+    background: var(--bg-secondary); border: 0.5px solid var(--border);
+    border-radius: var(--radius-md); padding: 10px;
+    font-family: 'Courier New', monospace; font-size: 11px;
+    color: var(--text-primary); white-space: pre-wrap;
+    word-break: break-all; max-height: 220px; overflow-y: auto; margin-top: .6rem;
+  }
+  .session-code {
+    font-family: 'Courier New', monospace; font-size: 26px; font-weight: 500;
+    letter-spacing: .2em; color: var(--blue-text);
+    background: var(--blue-light); border-radius: var(--radius-md);
+    padding: 14px 20px; text-align: center; margin: 1rem 0;
+  }
+  .eval-row      { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .eval-row:last-child { border-bottom: none; }
+  .eval-avatar   {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--green-light); color: var(--green-text);
+    font-size: 12px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .eval-name     { font-size: 14px; font-weight: 500; }
+  .eval-date     { font-size: 11px; color: var(--text-secondary); }
+  .chip          { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--bg-secondary); color: var(--text-secondary); margin-right: 4px; }
+  .notice        { background: var(--blue-light); border: 0.5px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px; font-size: 13px; color: var(--blue-text); margin-bottom: 1rem; }
+  .score-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: .8rem 0; }
+  .score-item    { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 7px 10px; }
+  .score-item-lbl { font-size: 10px; color: var(--text-secondary); margin-bottom: 1px; }
+  .score-item-val { font-size: 12px; font-weight: 500; }
+  .empty-state   { text-align: center; padding: 2rem; color: var(--text-secondary); font-size: 14px; }
+  .final-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1.5rem; }
+  .dash-session  { margin-bottom: 1rem; }
+  @media (max-width: 500px) {
+    .mode-grid { grid-template-columns: 1fr; }
+    .score-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="app-header">
+    <h1>Persona Evaluation System</h1>
+    <p>Αξιολόγηση απαντήσεων AI Personas βάσει 10 κριτηρίων</p>
+  </div>
+  <div id="app"></div>
+</div>
+
+<script>
+const CRITERIA = [
+  {id:1, name:"Hallucination Flag",                      opts:["No Hallucination","Minor Hallucination","Major Hallucination","Cannot Determine"]},
+  {id:2, name:"Query Relevance",                         opts:["Fully Relevant","Mostly Relevant","Partially Relevant","Not Relevant"]},
+  {id:3, name:"Justification Quality",                   opts:["Excellent","Good","Fair","Poor"]},
+  {id:4, name:"Evidence Grounding",                      opts:["Well Grounded","Mostly Grounded","Partially Grounded","Ungrounded"]},
+  {id:5, name:"Clarity",                                 opts:["Very Clear","Clear","Somewhat Clear","Unclear"]},
+  {id:6, name:"Result Usefulness",                       opts:["Very Useful","Useful","Somewhat Useful","Not Useful"]},
+  {id:7, name:"Bias",                                    opts:["No Bias","Slight Bias","Moderate Bias","Significant Bias"]},
+  {id:8, name:"Diversity",                               opts:["High","Moderate","Low","None"]},
+  {id:9, name:"Completeness / Variety / Representative", opts:["Excellent","Good","Fair","Poor"]},
+  {id:10,name:"Needed Logical Steps",                    opts:["All Present","Mostly Present","Partially Present","Missing"]}
+];
+const EVAL_STEPS = ["Persona & Query","Criteria 1–5","Criteria 6–10","Ολοκλήρωση"];
+
+let mode = 'home';
+let evalStep = 0;
+let errors = {};
+let sessions = {};
+let activeSession = null;
+let joinCode = '';
+let evalName = '';
+let ratings = {};
+let comments_ = {};
+let newSession = {creator:'',personaTitle:'',personaRole:'',guidelines:'',query:'',evaluations:[]};
+
+function genCode(){ return Math.random().toString(36).substring(2,8).toUpperCase(); }
+function now(){ return new Date().toLocaleString('el-GR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function initials(name){ return name.trim().split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase(); }
+
+// ── Storage ──────────────────────────────────────────────────────────────────
+function saveToStorage(){
+  try{ localStorage.setItem('eval-sessions', JSON.stringify(sessions)); }catch(e){}
+}
+function loadFromStorage(){
+  try{
+    const r = localStorage.getItem('eval-sessions');
+    if(r) sessions = JSON.parse(r);
+  }catch(e){}
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function render(){
+  const app = document.getElementById('app');
+  if(mode==='home')           app.innerHTML = renderHome();
+  else if(mode==='creator')   app.innerHTML = renderCreator();
+  else if(mode==='eval-join') app.innerHTML = renderEvalJoin();
+  else if(mode==='eval-form') app.innerHTML = renderEvalForm();
+  else if(mode==='dashboard') app.innerHTML = renderDashboard();
+  bindEvents();
+}
+
+function renderHome(){
+  const total = Object.values(sessions).reduce((a,s)=>a+s.evaluations.length,0);
+  return `
+  <div class="page-title">Καλώς ήρθες</div>
+  <div class="page-sub">Επίλεξε τον ρόλο σου για να ξεκινήσεις.</div>
+  <div class="mode-grid">
+    <div class="mode-card" id="go-creator">
+      <div class="icon">🟦</div>
+      <h3>Creator</h3>
+      <p>Δημιούργησε νέα αξιολόγηση και μοίρασε κωδικό στους αξιολογητές.</p>
+    </div>
+    <div class="mode-card" id="go-evaluator">
+      <div class="icon">🟩</div>
+      <h3>Evaluator</h3>
+      <p>Εισήγαγε τον κωδικό που σου έδωσε ο Creator και συμπλήρωσε την αξιολόγηση.</p>
+    </div>
+  </div>
+  ${Object.keys(sessions).length>0 ? `
+  <div style="margin-top:1.5rem;">
+    <button id="go-dash" style="width:100%;">📊 Αποθηκευμένες Αξιολογήσεις (${total})</button>
+  </div>` : ''}`;
+}
+
+function renderCreator(){
+  const s = newSession, e = errors;
+  return `
+  <button id="go-home" style="margin-bottom:1rem;font-size:13px;">← Αρχική</button>
+  <div class="step-tag">Creator Mode</div>
+  <div class="step-title">Δημιουργία Νέας Αξιολόγησης</div>
+  <div class="step-desc">Συμπληρώστε τα στοιχεία. Θα λάβετε κωδικό για τους Evaluators.</div>
+  <div class="card">
+    <div class="field">
+      <div class="field-label">Creator <span class="badge-fill">υποχρεωτικό</span></div>
+      <input class="fi${e.creator?' err':''}" id="cr-creator" placeholder="Το όνομά σας..." value="${s.creator}"/>
+      ${e.creator?'<div class="err-msg">Υποχρεωτικό</div>':''}
+    </div>
+    <div class="field">
+      <div class="field-label">Title of the Persona <span class="badge-fill">υποχρεωτικό</span></div>
+      <input class="fi${e.personaTitle?' err':''}" id="cr-title" placeholder="π.χ. Customer Support Agent" value="${s.personaTitle}"/>
+      ${e.personaTitle?'<div class="err-msg">Υποχρεωτικό</div>':''}
+    </div>
+    <div class="field">
+      <div class="field-label">Role of the Persona (prompt) <span class="badge-fill">υποχρεωτικό</span></div>
+      <textarea class="fi${e.personaRole?' err':''}" id="cr-role" rows="3" placeholder="You are a...">${s.personaRole}</textarea>
+      ${e.personaRole?'<div class="err-msg">Υποχρεωτικό</div>':''}
+    </div>
+    <div class="field">
+      <div class="field-label">Instructional Guidelines <span class="badge-opt">προαιρετικό</span></div>
+      <textarea class="fi" id="cr-guidelines" rows="2" placeholder="Επιπλέον οδηγίες...">${s.guidelines}</textarea>
+    </div>
+    <div class="field">
+      <div class="field-label">Query — ChatGPT Version 1 <span class="badge-fill">υποχρεωτικό</span></div>
+      <textarea class="fi${e.query?' err':''}" id="cr-query" rows="2" placeholder="Το query που στάλθηκε στο μοντέλο...">${s.query}</textarea>
+      ${e.query?'<div class="err-msg">Υποχρεωτικό</div>':''}
+    </div>
+  </div>
+  <div class="actions"><button class="primary" id="cr-submit">Δημιουργία Session →</button></div>`;
+}
+
+function renderEvalJoin(){
+  return `
+  <button id="go-home" style="margin-bottom:1rem;font-size:13px;">← Αρχική</button>
+  <div class="step-tag">Evaluator Mode</div>
+  <div class="step-title">Εισαγωγή Κωδικού Session</div>
+  <div class="step-desc">Ο Creator σου έδωσε έναν 6ψήφιο κωδικό.</div>
+  <div class="card">
+    <div class="field">
+      <div class="field-label">Κωδικός Session <span class="badge-fill">υποχρεωτικό</span></div>
+      <input class="fi${errors.joinCode?' err':''}" id="join-code" placeholder="π.χ. AB12CD"
+        value="${joinCode}" style="letter-spacing:.1em;font-size:16px;font-family:monospace;text-transform:uppercase;"/>
+      ${errors.joinCode?`<div class="err-msg">${errors.joinCode}</div>`:''}
+    </div>
+    <div class="field">
+      <div class="field-label">Όνομα Evaluator <span class="badge-fill">υποχρεωτικό</span></div>
+      <input class="fi${errors.evalName?' err':''}" id="join-name" placeholder="Το όνομά σας..." value="${evalName}"/>
+      ${errors.evalName?'<div class="err-msg">Υποχρεωτικό</div>':''}
+    </div>
+  </div>
+  <div class="actions"><button class="primary" id="join-submit">Είσοδος →</button></div>`;
+}
+
+function renderEvalForm(){
+  const s = sessions[activeSession];
+  const prog = `<div class="prog">${EVAL_STEPS.map((_,i)=>
+    `<div class="ps ${i<evalStep?'done':i===evalStep?'active':''}"></div>`).join('')
+  }<span class="prog-lbl">${evalStep+1}/${EVAL_STEPS.length}</span></div>`;
+
+  if(evalStep===0){
+    return `${prog}
+    <div class="notice">Αξιολόγηση για: <strong>${s.personaTitle}</strong> — Session: <strong>${activeSession}</strong></div>
+    <div class="step-tag">Βήμα 1</div>
+    <div class="step-title">Persona & Query</div>
+    <div class="step-desc">Δείτε τα στοιχεία που αξιολογείτε.</div>
+    <div class="card">
+      <div class="field"><div class="field-label">Evaluator <span class="badge-pre">εσείς</span></div><div class="pre-val">${evalName}</div></div>
+      <div class="field"><div class="field-label">Creator <span class="badge-pre">προσυμπληρωμένο</span></div><div class="pre-val">${s.creator}</div></div>
+      <div class="field"><div class="field-label">Title of the Persona <span class="badge-pre">προσυμπληρωμένο</span></div><div class="pre-val">${s.personaTitle}</div></div>
+      <div class="field"><div class="field-label">Role of the Persona <span class="badge-pre">προσυμπληρωμένο</span></div><div class="pre-val">${s.personaRole}</div></div>
+      ${s.guidelines?`<div class="field"><div class="field-label">Guidelines <span class="badge-opt">προαιρετικό</span></div><div class="pre-val">${s.guidelines}</div></div>`:''}
+      <div class="field"><div class="field-label">Query — ChatGPT Version 1 <span class="badge-pre">προσυμπληρωμένο</span></div><div class="pre-val">${s.query}</div></div>
+    </div>
+    <div class="actions"><button class="primary" id="ev-next">Επόμενο →</button></div>`;
+  }
+
+  if(evalStep===3){
+    const scoreItems = CRITERIA.map(c=>`
+      <div class="score-item">
+        <div class="score-item-lbl">${c.name}</div>
+        <div class="score-item-val">${ratings[c.id]||'—'}</div>
+      </div>`).join('');
+    return `${prog}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.5rem;">
+      <div style="width:36px;height:36px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;color:var(--green-text);font-size:18px;">✓</div>
+      <div>
+        <div style="font-size:17px;font-weight:500;">Η αξιολόγησή σας καταχωρήθηκε!</div>
+        <div style="font-size:13px;color:var(--text-secondary);">Session: ${activeSession} · ${now()}</div>
+      </div>
+    </div>
+    <div class="card"><div class="score-grid">${scoreItems}</div></div>
+    <div style="margin-top:1rem;"><button id="go-home" style="width:100%;">← Αρχική</button></div>`;
+  }
+
+  const slice = evalStep===1 ? CRITERIA.slice(0,5) : CRITERIA.slice(5,10);
+  const crits = slice.map(c=>{
+    const sel = ratings[c.id]||null;
+    const hasErr = errors['r'+c.id];
+    const opts = c.opts.map(o=>
+      `<button class="mc-opt${sel===o?' sel':''}${hasErr&&!sel?' err-ring':''}" data-crit="${c.id}" data-val="${o}">${o}</button>`
+    ).join('');
+    return `<div class="crit-card">
+      <div class="crit-hdr"><div class="crit-num">${c.id}</div><div class="crit-name">${c.name}</div></div>
+      <div class="mc-group">${opts}</div>
+      ${hasErr&&!sel?'<div class="err-msg">Επιλέξτε μια απάντηση</div>':''}
+      <textarea class="fi" rows="2" placeholder="Σχόλια (προαιρετικά)..." data-comment="${c.id}">${comments_[c.id]||''}</textarea>
+    </div>`;
+  }).join('');
+
+  return `${prog}
+  <div class="step-tag">Βήμα ${evalStep+1}</div>
+  <div class="step-title">Κριτήρια ${evalStep===1?'1–5':'6–10'}</div>
+  <div class="step-desc">Επιλέξτε για κάθε κριτήριο και προσθέστε σχόλια αν θέλετε.</div>
+  ${crits}
+  <div class="actions">
+    <button id="ev-back">← Πίσω</button>
+    <button class="primary" id="ev-next">${evalStep===2?'Υποβολή ✓':'Επόμενο →'}</button>
+  </div>`;
+}
+
+function renderDashboard(){
+  const all = Object.entries(sessions);
+  let html = `
+  <button id="go-home" style="margin-bottom:1rem;font-size:13px;">← Αρχική</button>
+  <div class="step-title">Αποθηκευμένες Αξιολογήσεις</div>
+  <div class="step-desc" style="margin-bottom:1.2rem;">Όλα τα sessions και οι αξιολογήσεις.</div>`;
+  if(all.length===0) return html+'<div class="empty-state">Δεν υπάρχουν sessions ακόμη.</div>';
+  all.forEach(([code,s])=>{
+    const evals = s.evaluations;
+    html += `<div class="card dash-session">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+        <div>
+          <div style="font-size:15px;font-weight:500;">${s.personaTitle}</div>
+          <div style="font-size:12px;color:var(--text-secondary);">Creator: ${s.creator} &nbsp;·&nbsp; Session: <strong style="font-family:monospace;color:var(--blue-text);">${code}</strong></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);">${evals.length} αξιολόγηση${evals.length!==1?'ες':''}</div>
+      </div>
+      ${evals.length===0?'<div style="font-size:13px;color:var(--text-secondary);padding:.5rem 0;">Καμία αξιολόγηση ακόμη.</div>':
+        evals.map((ev,idx)=>`<div class="eval-row">
+          <div class="eval-avatar">${initials(ev.evaluator)}</div>
+          <div style="flex:1;">
+            <div class="eval-name">${ev.evaluator}</div>
+            <div class="eval-date">${ev.timestamp}</div>
+            <div style="margin-top:3px;">${CRITERIA.slice(0,3).map(c=>`<span class="chip">${c.id}. ${ev.ratings[c.id]||'—'}</span>`).join('')}</div>
+          </div>
+          <button data-view="${code}-${idx}" style="font-size:11px;padding:4px 10px;">JSON</button>
+        </div>`).join('')}
+      <div style="display:flex;gap:8px;margin-top:1rem;">
+        <button data-export="${code}" style="font-size:12px;padding:5px 14px;">Εξαγωγή JSON</button>
+        <button data-download="${code}" style="font-size:12px;padding:5px 14px;">Λήψη .json</button>
+        <button data-delete="${code}" class="danger" style="font-size:12px;padding:5px 14px;">Διαγραφή</button>
+      </div>
+      <div id="json-view-${code}" style="display:none;"></div>
+    </div>`;
+  });
+  return html;
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
+function validateCreator(){
+  errors={};
+  if(!newSession.creator.trim())     errors.creator=true;
+  if(!newSession.personaTitle.trim())errors.personaTitle=true;
+  if(!newSession.personaRole.trim()) errors.personaRole=true;
+  if(!newSession.query.trim())       errors.query=true;
+  return !Object.keys(errors).length;
+}
+function validateJoin(){
+  errors={};
+  const code=joinCode.trim().toUpperCase();
+  if(!code)             errors.joinCode='Υποχρεωτικό';
+  else if(!sessions[code]) errors.joinCode='Δεν βρέθηκε αυτός ο κωδικός.';
+  if(!evalName.trim())  errors.evalName=true;
+  return !Object.keys(errors).length;
+}
+function validateEvalStep(){
+  errors={};
+  const slice = evalStep===1 ? CRITERIA.slice(0,5) : CRITERIA.slice(5,10);
+  slice.forEach(c=>{ if(!ratings[c.id]) errors['r'+c.id]=true; });
+  return !Object.keys(errors).length;
+}
+
+// ── Bind Events ───────────────────────────────────────────────────────────────
+function bindEvents(){
+  const $ = id => document.getElementById(id);
+  const on = (id,ev,fn) => { const el=$(id); if(el) el.addEventListener(ev,fn); };
+
+  on('go-home','click',()=>{ mode='home'; errors={}; render(); });
+  on('go-creator','click',()=>{ mode='creator'; errors={}; render(); });
+  on('go-evaluator','click',()=>{ mode='eval-join'; errors={}; render(); });
+  on('go-dash','click',()=>{ mode='dashboard'; render(); });
+
+  // Creator fields
+  const fieldMap={creator:'cr-creator',personaTitle:'cr-title',personaRole:'cr-role',guidelines:'cr-guidelines',query:'cr-query'};
+  Object.entries(fieldMap).forEach(([k,id])=>{
+    const el=$(id);
+    if(el) el.addEventListener('input',e=>{ newSession[k]=e.target.value; errors[k]=false; });
+  });
+
+  on('cr-submit','click',()=>{
+    if(!validateCreator()){ render(); return; }
+    const code = genCode();
+    sessions[code] = {...newSession, evaluations:[], createdAt:now()};
+    saveToStorage();
+    newSession = {creator:'',personaTitle:'',personaRole:'',guidelines:'',query:''};
+    $('app').innerHTML=`
+    <div class="step-tag">Session Δημιουργήθηκε!</div>
+    <div class="step-title">Μοιράστε τον κωδικό</div>
+    <div class="step-desc">Κάθε evaluator θα εισάγει αυτόν τον κωδικό για να αξιολογήσει.</div>
+    <div class="session-code">${code}</div>
+    <div style="font-size:13px;color:var(--text-secondary);text-align:center;margin-bottom:1.5rem;">Αντιγράψτε και στείλτε τον κωδικό στους αξιολογητές σας.</div>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button id="copy-code">Αντιγραφή κωδικού</button>
+      <button id="go-home2">← Αρχική</button>
+    </div>`;
+    $('copy-code').addEventListener('click',()=>{ navigator.clipboard.writeText(code); $('copy-code').textContent='Αντιγράφηκε!'; });
+    $('go-home2').addEventListener('click',()=>{ mode='home'; render(); });
+  });
+
+  // Evaluator join
+  const jc=$('join-code');
+  if(jc) jc.addEventListener('input',e=>{ joinCode=e.target.value.toUpperCase(); jc.value=joinCode; });
+  const jn=$('join-name');
+  if(jn) jn.addEventListener('input',e=>{ evalName=e.target.value; });
+  on('join-submit','click',()=>{
+    if(!validateJoin()){ render(); return; }
+    activeSession=joinCode.trim().toUpperCase();
+    evalStep=0; ratings={}; comments_={};
+    mode='eval-form'; render();
+  });
+
+  // MC options (evaluation)
+  document.querySelectorAll('.mc-opt').forEach(el=>{
+    el.addEventListener('click',()=>{
+      ratings[parseInt(el.dataset.crit)]=el.dataset.val;
+      errors['r'+el.dataset.crit]=false;
+      render();
+    });
+  });
+  document.querySelectorAll('[data-comment]').forEach(el=>{
+    el.addEventListener('input',e=>{ comments_[parseInt(e.target.dataset.comment)]=e.target.value; });
+  });
+
+  on('ev-next','click',()=>{
+    if(evalStep===0){ evalStep=1; render(); return; }
+    if(evalStep===1||evalStep===2){
+      if(!validateEvalStep()){ render(); return; }
+      if(evalStep===2){
+        const ev={evaluator:evalName, timestamp:now(), ratings:{}, comments:{}};
+        CRITERIA.forEach(c=>{ ev.ratings[c.id]=ratings[c.id]||''; ev.comments[c.id]=comments_[c.id]||''; });
+        sessions[activeSession].evaluations.push(ev);
+        saveToStorage();
+        evalStep=3; render(); return;
+      }
+      evalStep++; render();
+    }
+  });
+  on('ev-back','click',()=>{ evalStep--; render(); });
+
+  // Dashboard actions
+  document.querySelectorAll('[data-export]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const code=el.dataset.export, s=sessions[code];
+      const data={session:code,persona:{creator:s.creator,title:s.personaTitle,role:s.personaRole,guidelines:s.guidelines,query:s.query},evaluations:s.evaluations};
+      navigator.clipboard.writeText(JSON.stringify(data,null,2));
+      el.textContent='Αντιγράφηκε!'; setTimeout(()=>el.textContent='Εξαγωγή JSON',2000);
+    });
+  });
+  document.querySelectorAll('[data-download]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const code=el.dataset.download, s=sessions[code];
+      const data={session:code,persona:{creator:s.creator,title:s.personaTitle,role:s.personaRole,guidelines:s.guidelines,query:s.query},evaluations:s.evaluations};
+      const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=`session-${code}.json`; a.click();
+      URL.revokeObjectURL(url);
+    });
+  });
+  document.querySelectorAll('[data-delete]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      if(confirm('Διαγραφή session '+el.dataset.delete+';')){
+        delete sessions[el.dataset.delete]; saveToStorage(); render();
+      }
+    });
+  });
+  document.querySelectorAll('[data-view]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const [code,idx]=el.dataset.view.split('-');
+      const ev=sessions[code].evaluations[parseInt(idx)];
+      const box=document.getElementById('json-view-'+code);
+      if(box.style.display==='none'){
+        box.innerHTML=`<div class="json-pre">${JSON.stringify(ev,null,2)}</div>`;
+        box.style.display='block'; el.textContent='Κλείσιμο';
+      } else { box.style.display='none'; el.textContent='JSON'; }
+    });
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadFromStorage();
+render();
+</script>
+</body>
+</html>
