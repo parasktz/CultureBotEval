@@ -2,13 +2,21 @@
 // ║  ΒΑΛΕ ΕΔΩ ΤΑ ΣΤΟΙΧΕΙΑ ΑΠΟ ΤΟ FIREBASE CONSOLE       ║
 // ║  Project Settings → Your apps → Web app → Config     ║
 // ╚══════════════════════════════════════════════════════╝
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  databaseURL:       "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyACxHcH_-kiIfxEtm_L5u2Gd3MhJJsTp7o",
+  authDomain: "cultureboteval.firebaseapp.com",
+  databaseURL: "https://cultureboteval-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "cultureboteval",
+  storageBucket: "cultureboteval.firebasestorage.app",
+  messagingSenderId: "463119543508",
+  appId: "1:463119543508:web:581f7336399af2d7de1f41"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
