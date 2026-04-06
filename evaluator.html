@@ -11,7 +11,7 @@
 .sess-title{font-size:15px;font-weight:500;margin-bottom:3px;}
 .sess-meta{font-size:12px;color:var(--muted);line-height:1.7;}
 .sess-query{font-size:12px;color:var(--muted);margin-top:4px;max-width:560px;}
-.sess-role{font-size:15px;font-weight:500;color:var(--blue-t);background:var(--blue-bg);border-radius:6px;padding:5px 10px;margin-top:6px;display:inline-block;max-width:100%;white-space:pre-wrap;line-height:1.5;}
+.sess-role{font-size:12px;font-weight:400;color:var(--blue-t);background:var(--blue-bg);border-radius:6px;padding:4px 10px;margin-top:5px;display:inline-block;max-width:100%;white-space:pre-wrap;line-height:1.5;}
 
 .evals-section{border-top:.5px solid var(--border);}
 .evals-header{padding:.55rem 1.25rem;font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;background:var(--bg);}
@@ -152,7 +152,7 @@ async function load(){
           <div class="sess-head">
             <div style="flex:1;min-width:0;">
               <div class="sess-title">${esc(s.llmTitle||'—')}
-                <span style="font-size:12px;font-weight:400;color:var(--muted);">· ${esc(s.personaTitle||'')}</span>
+                <span style="font-size:15px;font-weight:500;color:var(--text);"> · ${esc(s.personaTitle||'')}</span>
               </div>
               <div class="sess-role">${esc(s.personaRole||'—')}</div>
               <div class="sess-meta">
