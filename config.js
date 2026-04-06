@@ -1,6 +1,6 @@
 // ╔══════════════════════════════════════════════════════╗
 // ║  ΒΑΛΕ ΕΔΩ ΤΑ ΣΤΟΙΧΕΙΑ ΑΠΟ ΤΟ FIREBASE CONSOLE       ║
-// ║  Project Settings → Your apps → Web app → Config     ║
+// ║  Project Settings →      Your apps → Web app → Config     ║
 // ╚══════════════════════════════════════════════════════╝
 
 const FIREBASE_CONFIG = {
