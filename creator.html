@@ -50,10 +50,18 @@
         <textarea class="fi" id="cr-guidelines" rows="2" placeholder="Επιπλέον οδηγίες για την απάντηση..."></textarea>
       </div>
     </div>
+ <!-- Query -->
+    <div class="card">
+      <div class="section-title">Query</div>
+      <div class="field">
+        <div class="field-label">Query — ChatGPT Version 1 <span class="badge badge-req">υποχρεωτικό</span></div>
+        <textarea class="fi" id="cr-query" rows="3" placeholder="Το query που στάλθηκε στο μοντέλο..."></textarea>
+      </div>
+    </div>
 
     <!-- LLM -->
     <div class="card">
-      <div class="section-title">Στοιχεία LLM</div>
+      <div class="section-title">Στοιχεία LLM (ChatBot/Gemini/CultureBot v.1//CultureBot v.2/CultureBot v.3</div>
       <div class="field">
         <div class="field-label">LLM Title <span class="badge badge-req">υποχρεωτικό</span></div>
         <input class="fi" id="cr-llm-title" placeholder="π.χ. GPT-4o, Claude 3.5 Sonnet, Gemini 1.5 Pro..."/>
@@ -64,15 +72,7 @@
       </div>
     </div>
 
-    <!-- Query -->
-    <div class="card">
-      <div class="section-title">Query</div>
-      <div class="field">
-        <div class="field-label">Query — ChatGPT Version 1 <span class="badge badge-req">υποχρεωτικό</span></div>
-        <textarea class="fi" id="cr-query" rows="3" placeholder="Το query που στάλθηκε στο μοντέλο..."></textarea>
-      </div>
-    </div>
-
+   
     <div id="cr-msg"></div>
     <div class="btn-row">
       <button class="btn primary" id="cr-submit">Δημιουργία Session →</button>
