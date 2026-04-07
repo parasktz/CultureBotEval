@@ -222,15 +222,8 @@ async function load(){
 
             <div class="sub-card sub-llm">
               <div class="sub-label">LLM</div>
-              <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:3px;">${esc(s.llmTitle||'—')}</div>
-              <div style="font-size:12px;color:var(--muted);line-height:1.55;white-space:pre-wrap;">${esc(s.llmDescription||'')}</div>
+              <div style="font-size:13px;font-weight:500;color:var(--text);">${esc(s.llmTitle||'—')}</div>
             </div>
-
-            ${s.guidelines ? `
-            <div class="sub-card sub-guide">
-              <div class="sub-label">Instructional Guidelines</div>
-              <div class="sub-val">${esc(s.guidelines)}</div>
-            </div>` : ''}
 
           </div>
 
