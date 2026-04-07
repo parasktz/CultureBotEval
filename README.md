@@ -10,8 +10,8 @@ Multi-page web application with Firebase Authentication and Realtime Database. H
 index.html  →  role.html  →  creator.html
     (login)   (choose role)  (verified only)
 
-index.html  →  role.html  →  evaluator.html  →  evaluation.html?session=CODE
-    (login)   (choose role)   (sessions list)     (evaluation form)
+index.html  →  role.html  →  evaluator.html         →     evaluationlist2persona.html  →  evaluation.html?session=CODE
+ (login)   (choose role)   (sessions personas list)          (sessions list)                (evaluation form)
 ```
 
 ---
