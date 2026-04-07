@@ -173,7 +173,7 @@ async function load(){
     // Filter sessions matching this persona title
     const matched = Object.entries(all)
       .filter(([, s]) => (s.personaTitle||'').trim() === personaTitle.trim())
-      .sort(([,a],[,b]) => (a.createdAt||'').localeCompare(b.createdAt||''));
+      .sort(([,a],[,b]) => (a.query||'').localeCompare(b.query||'', 'el'));
 
     $('hdr-sub').textContent = `${matched.length} session${matched.length!==1?'s':''}`;
 
