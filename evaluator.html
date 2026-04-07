@@ -15,36 +15,42 @@
   transition:border-color .2s;
 }
 .persona-card:hover{border-color:var(--blue);}
-.pc-head{padding:1rem 1.25rem;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+.pc-head{
+  padding:1.1rem 1.25rem;
+  display:flex;align-items:flex-start;
+  justify-content:space-between;gap:14px;flex-wrap:wrap;
+}
 .pc-num{
-  width:30px;height:30px;border-radius:50%;
+  width:28px;height:28px;border-radius:50%;
   background:var(--blue-bg);color:var(--blue-t);
-  font-size:13px;font-weight:600;
-  display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;
+  font-size:12px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;margin-top:3px;
 }
 .pc-info{flex:1;min-width:0;}
-.pc-title{font-size:17px;font-weight:500;color:var(--text);margin-bottom:4px;}
+.pc-title{font-size:18px;font-weight:500;color:var(--text);margin-bottom:6px;}
 .pc-role{
   font-size:12px;color:var(--blue-t);
   background:var(--blue-bg);
-  border-radius:6px;padding:4px 10px;
+  border-radius:6px;padding:5px 11px;
   display:inline-block;margin-bottom:6px;
-  line-height:1.5;max-width:100%;
+  line-height:1.55;max-width:100%;
 }
-.pc-meta{font-size:12px;color:var(--muted);line-height:1.6;}
-.pc-actions{display:flex;gap:8px;align-items:center;flex-shrink:0;}
+.pc-meta{font-size:12px;color:var(--muted);line-height:1.7;margin-top:2px;}
 .pc-footer{
   background:var(--bg);
   border-top:.5px solid var(--border);
-  padding:.6rem 1.25rem;
+  padding:.65rem 1.25rem;
   display:flex;align-items:center;justify-content:space-between;
-  font-size:12px;color:var(--muted);
-  flex-wrap:wrap;gap:8px;
+  font-size:12px;color:var(--muted);flex-wrap:wrap;gap:8px;
 }
-.eval-count-badge{
+.my-eval-badge{
   display:inline-flex;align-items:center;gap:5px;
   font-size:11px;background:var(--green-bg);color:var(--green-t);
   border-radius:4px;padding:2px 8px;
+}
+.sessions-count{
+  font-size:11px;color:var(--muted);
 }
 </style>
 </head>
@@ -69,7 +75,7 @@
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px;">
     <div>
       <div style="font-size:18px;font-weight:500;">Personas</div>
-      <div style="font-size:13px;color:var(--muted);margin-top:2px;">Επίλεξε μια Persona για να δεις τις λεπτομέρειες και να αξιολογήσεις.</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:2px;">Επίλεξε μια Persona για να δεις τα sessions και να αξιολογήσεις.</div>
     </div>
     <button class="btn sm" id="btn-refresh">↻ Ανανέωση</button>
   </div>
@@ -116,39 +122,55 @@ async function load(){
     }
 
     const sessions = snap.val();
-    const sorted   = Object.entries(sessions)
-      .sort(([,a],[,b]) => (a.personaRole||'').localeCompare(b.personaRole||'', 'el'));
 
-    const html = sorted.map(([code, s], idx) => {
-      const allEvals  = s.evaluations ? Object.values(s.evaluations) : [];
-      const myEvals   = allEvals.filter(ev => ev.evaluatorUid===ME.uid || ev.evaluatorEmail===ME.email);
-      const roleShort = (s.personaRole||'').length>120 ? s.personaRole.substring(0,120)+'…' : (s.personaRole||'—');
+    // Group sessions by personaTitle
+    const grouped = {};
+    Object.entries(sessions).forEach(([code, s]) => {
+      const key = (s.personaTitle || '—').trim();
+      if(!grouped[key]) grouped[key] = { personaTitle: key, personaRole: s.personaRole||'', sessions: [] };
+      grouped[key].sessions.push({ code, ...s });
+    });
 
-      const evalBadge = myEvals.length > 0
-        ? `<span class="eval-count-badge">✓ ${myEvals.length} αξιολόγηση${myEvals.length!==1?'ες':''} μου</span>`
+    // Sort groups by personaRole
+    const sortedGroups = Object.values(grouped)
+      .sort((a,b) => a.personaRole.localeCompare(b.personaRole, 'el'));
+
+    const html = sortedGroups.map((g, idx) => {
+      // Count total evals and my evals across all sessions of this persona
+      let totalEvals = 0, myEvals = 0;
+      g.sessions.forEach(s => {
+        const evs = s.evaluations ? Object.values(s.evaluations) : [];
+        totalEvals += evs.length;
+        myEvals    += evs.filter(ev => ev.evaluatorUid===ME.uid || ev.evaluatorEmail===ME.email).length;
+      });
+
+      const roleShort = g.personaRole.length>140 ? g.personaRole.substring(0,140)+'…' : g.personaRole;
+
+      const myBadge = myEvals > 0
+        ? `<span class="my-eval-badge">✓ ${myEvals} αξιολόγηση${myEvals!==1?'ες':''} μου</span>`
         : `<span style="font-size:11px;color:var(--muted);">Δεν έχεις αξιολογήσει ακόμη</span>`;
+
+      // Pass personaTitle as URL param
+      const encTitle = encodeURIComponent(g.personaTitle);
 
       return `
         <div class="persona-card">
           <div class="pc-head">
             <div class="pc-num">${idx+1}</div>
             <div class="pc-info">
-              <div class="pc-title">${esc(s.personaTitle||'—')}</div>
+              <div class="pc-title">${esc(g.personaTitle)}</div>
               <div class="pc-role">${esc(roleShort)}</div>
               <div class="pc-meta">
-                <span style="font-family:monospace;font-weight:600;color:var(--blue-t);">${esc(code)}</span>
-                &nbsp;·&nbsp; Creator: ${esc(s.creator||'')}
-                &nbsp;·&nbsp; ${esc(s.createdAt||'')}
-                &nbsp;·&nbsp; ${allEvals.length} αξιολόγηση${allEvals.length!==1?'ες':''} συνολικά
+                ${g.sessions.length} session${g.sessions.length!==1?'s':''} &nbsp;·&nbsp;
+                ${totalEvals} αξιολόγηση${totalEvals!==1?'ες':''} συνολικά
               </div>
             </div>
-            <div class="pc-actions">
-              <a href="evaluationlist2persona.html?session=${esc(code)}" class="btn sm pri">Επεξεργασία →</a>
+            <div style="flex-shrink:0;">
+              <a href="evaluationlist4persona.html?persona=${encTitle}" class="btn sm pri">Επεξεργασία →</a>
             </div>
           </div>
           <div class="pc-footer">
-            <div>${evalBadge}</div>
-            <div style="font-size:11px;color:var(--muted);">LLM: <strong style="color:var(--text);">${esc(s.llmTitle||'—')}</strong></div>
+            ${myBadge}
           </div>
         </div>`;
     }).join('');
