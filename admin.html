@@ -175,7 +175,7 @@ a.link:hover{text-decoration:underline;}
 <!-- ════ LOGIN ════ -->
 <div id="login-screen">
   <div class="login-box">
-    <h1><a href="https://parasktz.github.io/CultureBotEval/role.html">CULTUREBOTEVAL</a></h1>
+    <h1>CULTUREBOTEVAL</h1>
     <p>Admin Panel · Restricted Access</p>
     <div class="field"><label>Email</label>
       <input type="email" id="l-email" placeholder="admin@example.com"/>
@@ -191,7 +191,7 @@ a.link:hover{text-decoration:underline;}
 <!-- ════ APP ════ -->
 <div id="app">
   <div class="sidebar">
-    <div class="sidebar-logo"><a href="https://parasktz.github.io/CultureBotEval/role.html">CULTUREBOTEVAL</a></div>
+    <div class="sidebar-logo">CULTUREBOTEVAL</div>
     <div class="sidebar-sub">Admin Panel</div>
     <a class="nav-item active" onclick="showPage('dashboard')">⬛ Dashboard</a>
     <a class="nav-item" onclick="showPage('generate')">⚙ Generate Reports</a>
@@ -259,6 +259,14 @@ a.link:hover{text-decoration:underline;}
             Generate &amp; Push
           </button>
           <button class="btn secondary sm" onclick="previewFile(2)">Preview</button>
+        </div>
+      </div>
+
+      <div class="gen-box">
+        <h3>🔍 Debug Evaluations</h3>
+        <p>Checks how many sessions have evaluations and shows the data structure detected.</p>
+        <div class="gen-actions">
+          <button class="btn secondary sm" onclick="debugEvaluations()">Check Evaluation Data</button>
         </div>
       </div>
 
@@ -414,7 +422,7 @@ async function loadDashboard(){
   const personas = [...new Set(keys.map(k=>sessions[k].personaTitle||''))].filter(Boolean);
   const queries  = [...new Set(keys.map(k=>sessions[k].query||''))].filter(Boolean);
   const llms     = [...new Set(keys.map(k=>detectLLM(sessions[k])))].filter(Boolean);
-  const scored   = keys.filter(k=>sessions[k].evaluations && sessions[k].evaluations.ratings).length;
+  const scored   = keys.filter(k=>getLatestRatings(sessions[k])!==null).length;
 
   document.getElementById('s-sessions').textContent = keys.length;
   document.getElementById('s-personas').textContent = personas.length;
@@ -428,15 +436,17 @@ async function loadDashboard(){
 
 function detectLLM(s){
   const src = (s.llmSource||s.llmTitle||'').toLowerCase();
-  if(src.includes('chatgpt'))        return 'ChatGPT';
-  if(src.includes('gemini'))         return 'Gemini';
-  if(src.includes('v3'))             return 'SearchCultureBot v3';
-  if(src.includes('v2'))             return 'SearchCultureBot v2';
-  if(src.includes('searchculture')||src.includes('bot')) return 'SearchCultureBot v1';
-  const t = (s.llmTitle||'');
-  if(t.endsWith('ChatGPT'))          return 'ChatGPT';
-  if(t.endsWith('Gemini'))           return 'Gemini';
-  if(t.includes('SearchCultureBot')) return t.split('–').pop().trim()||'SearchCultureBot v1';
+  if(src.includes('chatgpt')||src.includes('gpt'))      return 'ChatGPT';
+  if(src.includes('gemini'))                             return 'Gemini';
+  if(src.includes('v3')||src.includes('scb3'))           return 'SearchCultureBot v3';
+  if(src.includes('v2')||src.includes('scb2'))           return 'SearchCultureBot v2';
+  if(src.includes('searchculture')||src.includes('bot')||src.includes('scb')) return 'SearchCultureBot v1';
+  // Fallback: suffix after dash
+  const t = s.llmTitle||'';
+  if(t.includes('–')){ const suf=t.split('–').pop().trim(); if(suf) return suf; }
+  if(t.includes('-')){ const suf=t.split('-').pop().trim(); if(suf&&suf.length<30) return suf; }
+  // Last resort: use llmTitle as-is
+  if(t && t.length < 40) return t;
   return 'Unknown';
 }
 
@@ -711,6 +721,87 @@ async function updateLatestPointer(f1, f2){
   });
 }
 
+/* ═══════════════════════════════════════════════
+   EVALUATION HELPERS
+═══════════════════════════════════════════════ */
+
+// Handles all possible Firebase structures for evaluations:
+// Structure A: session.evaluations.ratings (single evaluation)
+// Structure B: session.evaluations.<pushKey>.ratings (multiple evaluations)
+function getLatestRatings(session){
+  const ev = session.evaluations;
+  if(!ev || typeof ev !== 'object') return null;
+
+  // Structure A: direct ratings field
+  if(ev.ratings && typeof ev.ratings === 'object'){
+    return ev.ratings;
+  }
+
+  // Structure B: collection of evaluation records (push keys)
+  let latest = null;
+  let latestTs = '';
+  Object.values(ev).forEach(child => {
+    if(child && typeof child === 'object' && child.ratings){
+      const ts = child.timestamp || '';
+      if(!latest || ts > latestTs){
+        latest  = child.ratings;
+        latestTs = ts;
+      }
+    }
+  });
+  return latest;
+}
+
+async function debugEvaluations(){
+  log('info', '--- DEBUG: Checking evaluation data ---');
+  if(!fbData) await fetchFirebase();
+  const sessions = fbData.sessions || {};
+  const keys = Object.keys(sessions);
+  log('info', `Total sessions: ${keys.length}`);
+
+  let countA = 0, countB = 0, countNone = 0, sample = null;
+
+  keys.forEach(k => {
+    const s   = sessions[k];
+    const ev  = s.evaluations;
+    if(!ev){ countNone++; return; }
+
+    if(ev.ratings){
+      countA++;
+      if(!sample) sample = {key:k, structure:'A (direct ratings)', ratings:ev.ratings};
+    } else {
+      // Check for push key children
+      const hasChild = Object.values(ev).some(c=>c && typeof c==='object' && c.ratings);
+      if(hasChild){
+        countB++;
+        if(!sample){
+          const child = Object.values(ev).find(c=>c&&c.ratings);
+          sample = {key:k, structure:'B (collection)', ratings:child.ratings};
+        }
+      } else {
+        countNone++;
+      }
+    }
+  });
+
+  log('ok', `Structure A (direct): ${countA} sessions`);
+  log('ok', `Structure B (collection): ${countB} sessions`);
+  log(countNone>0?'err':'ok', `No evaluations: ${countNone} sessions`);
+
+  if(sample){
+    log('info', `Sample session [${sample.key}] — Structure: ${sample.structure}`);
+    log('info', `Ratings: ${JSON.stringify(sample.ratings)}`);
+    // Check LLM detection
+    const s = sessions[sample.key];
+    log('info', `LLM detected as: "${detectLLM(s)}" (llmTitle: "${s.llmTitle||'—'}")`);
+    log('info', `Persona: "${s.personaTitle||'—'}"`);
+    log('info', `Query: "${(s.query||'—').substring(0,60)}..."`);
+  } else {
+    log('err', 'No sessions with evaluations found!');
+  }
+  log('info', '--- END DEBUG ---');
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    FILE 1 — SESSION STATISTICS
 ═══════════════════════════════════════════════════════════════════ */
@@ -884,15 +975,18 @@ function buildFile2(data){
 
   // Group: persona → query → llm → ratings
   const byPersona = {};
+  let evCount = 0;
   Object.values(sessions).forEach(s=>{
-    const ev = s.evaluations;
-    if(!ev||!ev.ratings) return;
+    const ratings = getLatestRatings(s);
+    if(!ratings) return;
+    evCount++;
     const pt  = s.personaTitle||'Unknown';
     const q   = s.query||'';
     const llm = detectLLM(s);
+    if(llm==='Unknown') return;
     if(!byPersona[pt])    byPersona[pt]   ={};
     if(!byPersona[pt][q]) byPersona[pt][q]={};
-    byPersona[pt][q][llm] = ev.ratings;
+    byPersona[pt][q][llm] = ratings;
   });
 
   // Build chart + ranking data
