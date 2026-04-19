@@ -394,13 +394,6 @@ function showPage(id){
 /* ═══════════════════════════════════════════════
    FIREBASE READ
 ═══════════════════════════════════════════════ */
-/*async function fetchFirebase(){
-  const snap = await db.ref('/').once('value');
-  fbData = snap.val() || {};
-  return fbData;
-}
-*/
-  // ΝΕΟ:
 async function fetchFirebase(){
   const [sessionsSnap, reportsSnap] = await Promise.all([
     db.ref('sessions').once('value'),
@@ -421,7 +414,7 @@ async function loadDashboard(){
   const personas = [...new Set(keys.map(k=>sessions[k].personaTitle||''))].filter(Boolean);
   const queries  = [...new Set(keys.map(k=>sessions[k].query||''))].filter(Boolean);
   const llms     = [...new Set(keys.map(k=>detectLLM(sessions[k])))].filter(Boolean);
-  const scored   = keys.filter(k=>sessions[k].scores).length;
+  const scored   = keys.filter(k=>sessions[k].evaluations && sessions[k].evaluations.ratings).length;
 
   document.getElementById('s-sessions').textContent = keys.length;
   document.getElementById('s-personas').textContent = personas.length;
@@ -845,14 +838,45 @@ ${rolesHtml}
 ═══════════════════════════════════════════════════════════════════ */
 function buildFile2(data){
   const sessions = data.sessions || {};
+
   const CRITERIA = [
-    {key:'hallucination',     label:'1. Hallucination',     max:1},
-    {key:'queryRelevance',    label:'2. Query Relevance',   max:2},
-    {key:'justification',     label:'3. Justification',     max:3},
-    {key:'evidenceGrounding', label:'4. Evidence Grounding',max:2},
-    {key:'clarity',           label:'5. Clarity',           max:2},
-    {key:'resultUsefulness',  label:'6. Result Usefulness', max:2},
+    {key:'1',  label:'1. Hallucination Flag'},
+    {key:'2',  label:'2. Query Relevance'},
+    {key:'3',  label:'3. Justification Quality'},
+    {key:'4',  label:'4. Evidence Grounding'},
+    {key:'5',  label:'5. Clarity'},
+    {key:'6',  label:'6. Result Usefulness'},
+    {key:'7',  label:'7. Bias'},
+    {key:'8',  label:'8. Diversity'},
+    {key:'9',  label:'9. Completeness / Variety / Representative'},
+    {key:'10', label:'10. Needed Logical Steps'},
   ];
+
+  // opts[0]=best=3, opts[1]=2, opts[2]=1, opts[3]=worst=0
+  const RATING_MAP = {
+    '1':  {'No Hallucination':3,  'Minor Hallucination':2, 'Major Hallucination':1, 'Cannot Determine':0},
+    '2':  {'Fully Relevant':3,    'Mostly Relevant':2,     'Partially Relevant':1,  'Not Relevant':0},
+    '3':  {'Excellent':3,         'Good':2,                'Fair':1,                'Poor':0},
+    '4':  {'Well Grounded':3,     'Mostly Grounded':2,     'Partially Grounded':1,  'Ungrounded':0},
+    '5':  {'Very Clear':3,        'Clear':2,               'Somewhat Clear':1,      'Unclear':0},
+    '6':  {'Very Useful':3,       'Useful':2,              'Somewhat Useful':1,     'Not Useful':0},
+    '7':  {'No Bias':3,           'Slight Bias':2,         'Moderate Bias':1,       'Significant Bias':0},
+    '8':  {'High':3,              'Moderate':2,            'Low':1,                 'None':0},
+    '9':  {'Excellent':3,         'Good':2,                'Fair':1,                'Poor':0},
+    '10': {'All Present':3,       'Mostly Present':2,      'Partially Present':1,   'Missing':0},
+  };
+
+  function ratingToNum(key, val){
+    if(!val) return null;
+    const map = RATING_MAP[key] || {};
+    if(map[val] !== undefined) return map[val];
+    const lower = val.toLowerCase();
+    for(const [k,v] of Object.entries(map)){
+      if(k.toLowerCase() === lower) return v;
+    }
+    return null;
+  }
+
   const LLM_COLORS = {
     'ChatGPT':             {bg:'rgba(249,168,77,0.85)',  border:'#f9a84d'},
     'Gemini':              {bg:'rgba(66,183,100,0.85)',  border:'#42b764'},
@@ -861,14 +885,17 @@ function buildFile2(data){
     'SearchCultureBot v3': {bg:'rgba(220,75,100,0.85)',  border:'#dc4b64'},
   };
 
+  // Group: persona → query → llm → ratings
   const byPersona = {};
   Object.values(sessions).forEach(s=>{
+    const ev = s.evaluations;
+    if(!ev || !ev.ratings) return;
     const pt  = s.personaTitle || 'Unknown';
     const q   = s.query || '';
     const llm = detectLLM(s);
     if(!byPersona[pt])    byPersona[pt]    = {};
     if(!byPersona[pt][q]) byPersona[pt][q] = {};
-    if(s.scores)          byPersona[pt][q][llm] = s.scores;
+    byPersona[pt][q][llm] = ev.ratings;
   });
 
   const charts = [];
@@ -878,10 +905,15 @@ function buildFile2(data){
       const pairs = Object.entries(llmMap);
       if(!pairs.length) return;
       const id       = `chart_${idx++}`;
-      const datasets = pairs.map(([llm, scores])=>{
+      const datasets = pairs.map(([llm, ratings])=>{
         const color = LLM_COLORS[llm]||{bg:'rgba(150,150,150,0.8)',border:'#999'};
-        return {label:llm, data:CRITERIA.map(c=>scores[c.key]??null),
-                backgroundColor:color.bg, borderColor:color.border, borderWidth:1};
+        return {
+          label: llm,
+          data:  CRITERIA.map(c => ratingToNum(c.key, ratings[c.key])),
+          backgroundColor: color.bg,
+          borderColor:     color.border,
+          borderWidth: 1
+        };
       });
       charts.push({id, persona, query, datasets});
     });
@@ -934,12 +966,17 @@ h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
 </div>
 <div class="criteria-note">
   <strong>Evaluation Criteria:</strong>
-  1. Hallucination Flag (0–1) &nbsp;·&nbsp;
-  2. Query Relevance (0–2) &nbsp;·&nbsp;
-  3. Justification Quality (0–3) &nbsp;·&nbsp;
-  4. Evidence Grounding (0–2) &nbsp;·&nbsp;
-  5. Clarity (0–2) &nbsp;·&nbsp;
-  6. Result Usefulness (0–2)
+  <strong>Evaluation Criteria</strong> — Score: 3=Best · 0=Worst<br>
+  1. Hallucination Flag &nbsp;·&nbsp;
+  2. Query Relevance &nbsp;·&nbsp;
+  3. Justification Quality &nbsp;·&nbsp;
+  4. Evidence Grounding &nbsp;·&nbsp;
+  5. Clarity &nbsp;·&nbsp;
+  6. Result Usefulness &nbsp;·&nbsp;
+  7. Bias &nbsp;·&nbsp;
+  8. Diversity &nbsp;·&nbsp;
+  9. Completeness / Variety / Representative &nbsp;·&nbsp;
+  10. Needed Logical Steps
 </div>
 ${hasScores ? chartBlocks : '<div class="empty-note">No evaluation scores found.<br><small>Add a <code>scores</code> object to sessions in Firebase.</small></div>'}
 <div class="gen-info">Generated: ${new Date().toISOString()} · CultureBotEval Admin</div>
@@ -959,7 +996,7 @@ CHARTS.forEach(c=>{
         tooltip:{callbacks:{label:ctx=>\` \${ctx.dataset.label}: \${ctx.raw??'n/a'}\`}}
       },
       scales:{
-        x:{min:0,max:3,ticks:{stepSize:1,font:{size:11}},title:{display:true,text:'Score',font:{size:11}}},
+        x:{min:0,max:3,ticks:{stepSize:1,font:{size:11},callback:v=>({0:'0 Worst',1:'1',2:'2',3:'3 Best'}[v]||v)},title:{display:true,text:'Score (0=Worst · 3=Best)',font:{size:11}}},
         y:{ticks:{font:{size:11}}}
       }
     }
