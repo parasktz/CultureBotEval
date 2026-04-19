@@ -134,6 +134,35 @@ a.link:hover{text-decoration:underline;}
 }
 .cfg-row label{font-size:12px;color:var(--muted);min-width:160px;}
 
+/* ── USERS ── */
+.user-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:.9rem 1.25rem;display:flex;align-items:center;gap:14px;margin-bottom:8px;
+}
+.user-avatar{
+  width:36px;height:36px;border-radius:50%;background:var(--surface2);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+  font-size:15px;flex-shrink:0;
+}
+.user-info{flex:1;min-width:0;}
+.user-email{font-size:13px;color:var(--text);word-break:break-all;}
+.user-meta{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
+.user-actions{display:flex;gap:6px;flex-shrink:0;}
+.toggle-admin{
+  font-size:11px;padding:4px 12px;border-radius:5px;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface2);color:var(--text);
+  transition:all .15s;
+}
+.toggle-admin.is-admin{background:var(--accent);color:#0f0f0f;border-color:var(--accent);}
+.toggle-admin:hover{opacity:.8;}
+.search-bar{
+  width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  padding:.55rem .9rem;color:var(--text);font-size:13px;font-family:var(--font);
+  outline:none;margin-bottom:1rem;
+}
+.search-bar:focus{border-color:var(--accent);}
+.users-summary{font-size:12px;color:var(--muted);margin-bottom:1rem;font-family:var(--mono);}
+
 /* ── SPINNER ── */
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.2);
       border-top-color:currentColor;border-radius:50%;animation:spin .7s linear infinite;}
@@ -166,6 +195,7 @@ a.link:hover{text-decoration:underline;}
     <a class="nav-item active" onclick="showPage('dashboard')">⬛ Dashboard</a>
     <a class="nav-item" onclick="showPage('generate')">⚙ Generate Reports</a>
     <a class="nav-item" onclick="showPage('history')">📂 Report History</a>
+    <a class="nav-item" onclick="showPage('users')">👥 Users</a>
     <a class="nav-item" onclick="showPage('config')">🔧 Configuration</a>
     <div class="sidebar-bottom">
       <div class="user-tag" id="user-email"></div>
@@ -179,7 +209,7 @@ a.link:hover{text-decoration:underline;}
     <div class="page active" id="page-dashboard">
       <h2>Dashboard</h2>
       <div class="page-sub" id="db-subtitle">Loading Firebase data…</div>
-      <div class="cards" id="db-cards">
+      <div class="cards">
         <div class="card"><div class="card-lbl">Sessions</div><div class="card-val" id="s-sessions">—</div></div>
         <div class="card"><div class="card-lbl">Personas</div><div class="card-val" id="s-personas">—</div></div>
         <div class="card"><div class="card-lbl">Unique Queries</div><div class="card-val" id="s-queries">—</div></div>
@@ -259,6 +289,16 @@ a.link:hover{text-decoration:underline;}
       </div>
     </div>
 
+    <!-- USERS -->
+    <div class="page" id="page-users">
+      <h2>Users</h2>
+      <div class="page-sub">Manage user roles — toggle admin access directly from here.</div>
+      <input class="search-bar" id="user-search"
+             placeholder="Search by email…" oninput="filterUsers()"/>
+      <div class="users-summary" id="users-summary">Loading…</div>
+      <div id="users-list"></div>
+    </div>
+
     <!-- CONFIG -->
     <div class="page" id="page-config">
       <h2>Configuration</h2>
@@ -277,10 +317,6 @@ a.link:hover{text-decoration:underline;}
           <label>Output folder (repo path)</label>
           <input id="cfg-folder" value="reports"/>
         </div>
-        <div class="cfg-row">
-          <label>Admin email(s)</label>
-          <input id="cfg-admins" placeholder="admin@example.com, other@example.com"/>
-        </div>
       </div>
       <div style="margin-top:1rem;">
         <button class="btn sm" onclick="saveCfg()">Save All</button>
@@ -290,25 +326,19 @@ a.link:hover{text-decoration:underline;}
   </div><!-- .main -->
 </div><!-- #app -->
 
-<!-- hidden iframe for preview -->
-<iframe id="preview-frame" style="display:none;"></iframe>
-
 <script>
 /* ═══════════════════════════════════════════════
-   FIREBASE CONFIG  ← replace with your project values
+   FIREBASE CONFIG  ← αντικατέστησε με τις τιμές σου
 ═══════════════════════════════════════════════ */
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  apiKey:            "YOUR_API_KEY",
   authDomain:        "cultureboteval.firebaseapp.com",
   databaseURL:       "https://cultureboteval-default-rtdb.firebaseio.com",
   projectId:         "cultureboteval",
-  storageBucket:     "cultureboteval.appspot.com",
-  messagingSenderId: "XXXXXXXXXXXX",
-  appId:             "1:XXXXXXXXXXXX:web:XXXXXXXXXXXXXXXX"
+  storageBucket:     "cultureboteval.firebasestorage.app",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
 };
-
-/* ── Admin email list (also stored in cfg) ── */
-const ADMIN_EMAILS = ['admin@cultureboteval.gr'];
 
 /* ═══════════════════════════════════════════════
    INIT
@@ -317,29 +347,26 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
 const db   = firebase.database();
 
-let fbData    = null;   // raw Firebase snapshot
-let cfg = loadCfgLocal();
+let fbData = null;
+let cfg    = loadCfgLocal();
 
-auth.onAuthStateChanged(user => {
-  if(user && isAdmin(user.email)){
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-    document.getElementById('user-email').textContent = user.email;
-    loadToken();
-    loadCfgFields();
-    loadDashboard();
-    loadHistory();
-  } else if(user){
-    auth.signOut();
-    setErr('Access denied — not an admin account.');
+auth.onAuthStateChanged(async user => {
+  if(user){
+    const admin = await isAdmin(user.uid);
+    if(admin){
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display          = 'flex';
+      document.getElementById('user-email').textContent     = user.email;
+      loadToken();
+      loadCfgFields();
+      loadDashboard();
+      loadHistory();
+    } else {
+      await auth.signOut();
+      setErr('Access denied — not an admin account.');
+    }
   }
 });
-
-function isAdmin(email){
-  const admins = cfg.admins || ADMIN_EMAILS;
-  if(Array.isArray(admins)) return admins.includes(email);
-  return admins.split(',').map(s=>s.trim()).includes(email);
-}
 
 /* ═══════════════════════════════════════════════
    AUTH
@@ -355,6 +382,14 @@ async function doLogout(){ await auth.signOut(); location.reload(); }
 function setErr(m){ document.getElementById('l-err').textContent = m; }
 
 /* ═══════════════════════════════════════════════
+   ADMIN CHECK — Firebase only
+═══════════════════════════════════════════════ */
+async function isAdmin(uid){
+  const snap = await db.ref('admins/' + uid).once('value');
+  return snap.exists();
+}
+
+/* ═══════════════════════════════════════════════
    NAV
 ═══════════════════════════════════════════════ */
 function showPage(id){
@@ -362,6 +397,7 @@ function showPage(id){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   event.currentTarget && event.currentTarget.classList.add('active');
+  if(id==='users') loadUsers();
 }
 
 /* ═══════════════════════════════════════════════
@@ -377,34 +413,32 @@ async function loadDashboard(){
   await fetchFirebase();
   const sessions = fbData.sessions || {};
   const reports  = fbData.reports  || {};
-  const keys = Object.keys(sessions);
+  const keys     = Object.keys(sessions);
   const personas = [...new Set(keys.map(k=>sessions[k].personaTitle||''))].filter(Boolean);
   const queries  = [...new Set(keys.map(k=>sessions[k].query||''))].filter(Boolean);
   const llms     = [...new Set(keys.map(k=>detectLLM(sessions[k])))].filter(Boolean);
   const scored   = keys.filter(k=>sessions[k].scores).length;
-  const rKeys    = Object.keys(reports);
 
   document.getElementById('s-sessions').textContent = keys.length;
   document.getElementById('s-personas').textContent = personas.length;
   document.getElementById('s-queries').textContent  = queries.length;
   document.getElementById('s-llms').textContent     = llms.length;
   document.getElementById('s-scored').textContent   = scored;
-  document.getElementById('s-reports').textContent  = rKeys.length;
+  document.getElementById('s-reports').textContent  = Object.keys(reports).length;
   document.getElementById('db-subtitle').textContent =
     `${keys.length} sessions · ${personas.length} personas · ${new Date().toLocaleString()}`;
 }
 
 function detectLLM(s){
   const src = (s.llmSource||s.llmTitle||'').toLowerCase();
-  if(src.includes('chatgpt')) return 'ChatGPT';
-  if(src.includes('gemini'))  return 'Gemini';
-  if(src.includes('v3'))      return 'SearchCultureBot v3';
-  if(src.includes('v2'))      return 'SearchCultureBot v2';
+  if(src.includes('chatgpt'))        return 'ChatGPT';
+  if(src.includes('gemini'))         return 'Gemini';
+  if(src.includes('v3'))             return 'SearchCultureBot v3';
+  if(src.includes('v2'))             return 'SearchCultureBot v2';
   if(src.includes('searchculture')||src.includes('bot')) return 'SearchCultureBot v1';
-  // fallback: infer from llmTitle suffix
   const t = (s.llmTitle||'');
-  if(t.endsWith('ChatGPT')) return 'ChatGPT';
-  if(t.endsWith('Gemini'))  return 'Gemini';
+  if(t.endsWith('ChatGPT'))          return 'ChatGPT';
+  if(t.endsWith('Gemini'))           return 'Gemini';
   if(t.includes('SearchCultureBot')) return t.split('–').pop().trim()||'SearchCultureBot v1';
   return 'Unknown';
 }
@@ -415,8 +449,8 @@ function detectLLM(s){
 async function loadHistory(){
   if(!fbData) await fetchFirebase();
   const reports = fbData.reports || {};
-  const tbody = document.getElementById('history-tbody');
-  const rows = Object.entries(reports).sort((a,b)=>b[0].localeCompare(a[0]));
+  const tbody   = document.getElementById('history-tbody');
+  const rows    = Object.entries(reports).sort((a,b)=>b[0].localeCompare(a[0]));
   if(!rows.length){
     tbody.innerHTML='<tr><td colspan="5" style="color:var(--muted)">No reports yet.</td></tr>';
     return;
@@ -435,6 +469,91 @@ async function loadHistory(){
 }
 
 /* ═══════════════════════════════════════════════
+   USERS
+═══════════════════════════════════════════════ */
+let allUsers  = [];
+let adminUIDs = {};
+
+async function loadUsers(){
+  document.getElementById('users-summary').textContent = 'Loading…';
+  document.getElementById('users-list').innerHTML = '';
+
+  const [usersSnap, adminsSnap] = await Promise.all([
+    db.ref('users').once('value'),
+    db.ref('admins').once('value')
+  ]);
+
+  adminUIDs = adminsSnap.val() || {};
+  const usersRaw = usersSnap.val() || {};
+
+  allUsers = Object.entries(usersRaw).map(([uid, info])=>({
+    uid,
+    email:     info.email     || '—',
+    lastLogin: info.lastLogin || null,
+    isAdmin:   !!adminUIDs[uid]
+  }));
+
+  allUsers.sort((a,b)=>{
+    if(a.isAdmin !== b.isAdmin) return a.isAdmin ? -1 : 1;
+    return a.email.localeCompare(b.email);
+  });
+
+  filterUsers();
+}
+
+function filterUsers(){
+  const q = document.getElementById('user-search').value.toLowerCase();
+  renderUsers(q ? allUsers.filter(u=>u.email.toLowerCase().includes(q)) : allUsers);
+}
+
+function renderUsers(list){
+  const admins = list.filter(u=>u.isAdmin).length;
+  document.getElementById('users-summary').textContent =
+    `${list.length} user${list.length!==1?'s':''} · ${admins} admin${admins!==1?'s':''}`;
+
+  document.getElementById('users-list').innerHTML = list.length ? list.map(u=>`
+    <div class="user-card" id="ucard-${u.uid}">
+      <div class="user-avatar">${u.isAdmin ? '👑' : '👤'}</div>
+      <div class="user-info">
+        <div class="user-email">${esc(u.email)}</div>
+        <div class="user-meta">
+          UID: ${u.uid}
+          ${u.lastLogin ? ' · Last login: ' + new Date(u.lastLogin).toLocaleString('el-GR') : ''}
+        </div>
+      </div>
+      <div class="user-actions">
+        <button class="toggle-admin ${u.isAdmin?'is-admin':''}"
+                onclick="toggleAdmin('${u.uid}', ${u.isAdmin})">
+          ${u.isAdmin ? '★ Admin' : '☆ Make Admin'}
+        </button>
+      </div>
+    </div>`).join('')
+  : '<div style="color:var(--muted);font-size:13px;padding:1rem 0;">No users found.</div>';
+}
+
+async function toggleAdmin(uid, currentlyAdmin){
+  const me = auth.currentUser;
+  if(currentlyAdmin && me && me.uid === uid){
+    alert('Cannot remove your own admin role.');
+    return;
+  }
+  if(currentlyAdmin){
+    await db.ref('admins/' + uid).remove();
+    log('info', `Admin role removed from ${uid}`);
+  } else {
+    await db.ref('admins/' + uid).set(true);
+    log('info', `Admin role granted to ${uid}`);
+  }
+  const u = allUsers.find(u=>u.uid===uid);
+  if(u) u.isAdmin = !currentlyAdmin;
+  allUsers.sort((a,b)=>{
+    if(a.isAdmin !== b.isAdmin) return a.isAdmin ? -1 : 1;
+    return a.email.localeCompare(b.email);
+  });
+  filterUsers();
+}
+
+/* ═══════════════════════════════════════════════
    CONFIG
 ═══════════════════════════════════════════════ */
 function loadCfgLocal(){
@@ -444,19 +563,16 @@ function loadCfgFields(){
   document.getElementById('cfg-owner').value  = cfg.owner  || 'parasktz';
   document.getElementById('cfg-repo').value   = cfg.repo   || 'CultureBotEval';
   document.getElementById('cfg-folder').value = cfg.folder || 'reports';
-  document.getElementById('cfg-admins').value = (cfg.admins||[]).join(', ');
 }
 function saveCfg(){
   cfg.owner  = document.getElementById('cfg-owner').value.trim();
   cfg.repo   = document.getElementById('cfg-repo').value.trim();
   cfg.folder = document.getElementById('cfg-folder').value.trim();
-  cfg.admins = document.getElementById('cfg-admins').value.split(',').map(s=>s.trim()).filter(Boolean);
   localStorage.setItem('cbe_cfg', JSON.stringify(cfg));
   log('info','Configuration saved.');
 }
 function loadToken(){
-  const t = localStorage.getItem('cbe_gh_token')||'';
-  document.getElementById('gh-token').value = t;
+  document.getElementById('gh-token').value = localStorage.getItem('cbe_gh_token')||'';
 }
 function saveToken(){
   localStorage.setItem('cbe_gh_token', document.getElementById('gh-token').value.trim());
@@ -465,13 +581,14 @@ function saveToken(){
 function getToken(){ return document.getElementById('gh-token').value.trim(); }
 
 /* ═══════════════════════════════════════════════
-   LOG HELPER
+   LOG
 ═══════════════════════════════════════════════ */
 function log(type, msg){
   const box = document.getElementById('gen-log');
+  if(!box) return;
   const cls = type==='ok'?'log-ok':type==='err'?'log-err':'log-info';
   box.innerHTML += `<div class="${cls}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
-  box.scrollTop = box.scrollHeight;
+  box.scrollTop  = box.scrollHeight;
 }
 
 /* ═══════════════════════════════════════════════
@@ -483,8 +600,8 @@ async function generateAndPush(fileNum){
   log('info',`Starting File ${fileNum} generation…`);
   try{
     if(!fbData) await fetchFirebase();
-    const html = fileNum===1 ? buildFile1(fbData) : buildFile2(fbData);
-    const ts = datetimePrefix();
+    const html     = fileNum===1 ? buildFile1(fbData) : buildFile2(fbData);
+    const ts       = datetimePrefix();
     const filename = `${ts}_statistics${fileNum===1?'':'-criteria'}.html`;
     await pushToGitHub(filename, html);
     await saveReportRecord(filename, fileNum===1?'stats':'criteria', fbData);
@@ -505,7 +622,7 @@ async function generateBoth(){
     log('ok',`✓ ${f1} pushed.`);
     await pushToGitHub(f2, buildFile2(fbData));
     log('ok',`✓ ${f2} pushed.`);
-    await saveReportRecord(f1, 'stats', fbData);
+    await saveReportRecord(f1, 'stats',    fbData);
     await saveReportRecord(f2, 'criteria', fbData);
     await updateLatestPointer(f1, f2);
     log('ok','✓ Latest pointers updated. Done!');
@@ -513,20 +630,6 @@ async function generateBoth(){
   setSpin('spinBoth',false);
 }
 
-function setSpin(id,on){
-  const el = document.getElementById(id);
-  if(el) el.style.display = on?'inline-block':'none';
-}
-
-function datetimePrefix(){
-  const d = new Date();
-  const pad = n=>String(n).padStart(2,'0');
-  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-}
-
-/* ═══════════════════════════════════════════════
-   PREVIEW
-═══════════════════════════════════════════════ */
 async function previewFile(fileNum){
   if(!fbData) await fetchFirebase();
   const html = fileNum===1 ? buildFile1(fbData) : buildFile2(fbData);
@@ -535,12 +638,22 @@ async function previewFile(fileNum){
   w.document.close();
 }
 
+function setSpin(id,on){
+  const el = document.getElementById(id);
+  if(el) el.style.display = on?'inline-block':'none';
+}
+
+function datetimePrefix(){
+  const d=new Date(), pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
 /* ═══════════════════════════════════════════════
    GITHUB API
 ═══════════════════════════════════════════════ */
 async function pushToGitHub(filename, content){
   const token  = getToken();
-  if(!token) throw new Error('GitHub token not set. Go to Generate Reports and enter your token.');
+  if(!token) throw new Error('GitHub token not set.');
   const owner  = cfg.owner  || 'parasktz';
   const repo   = cfg.repo   || 'CultureBotEval';
   const folder = cfg.folder || 'reports';
@@ -548,14 +661,13 @@ async function pushToGitHub(filename, content){
   const url    = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
   const encoded = btoa(unescape(encodeURIComponent(content)));
 
-  // Check if file exists (to get SHA for update)
   let sha;
   try{
-    const check = await fetch(url, {headers:{'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json'}});
+    const check = await fetch(url,{headers:{'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json'}});
     if(check.ok){ const j=await check.json(); sha=j.sha; }
   }catch(e){}
 
-  const body = {message:`Add ${filename}`,content:encoded};
+  const body = {message:`Add ${filename}`, content:encoded};
   if(sha) body.sha = sha;
 
   const res = await fetch(url,{
@@ -564,36 +676,33 @@ async function pushToGitHub(filename, content){
     body:JSON.stringify(body)
   });
   if(!res.ok){ const err=await res.json(); throw new Error(err.message||res.statusText); }
-  return `https://raw.githubusercontent.com/${owner}/${repo}/main/${path}`;
 }
 
 /* ═══════════════════════════════════════════════
-   FIREBASE REPORT RECORD
+   FIREBASE REPORT RECORDS
 ═══════════════════════════════════════════════ */
 async function saveReportRecord(filename, type, data){
   const owner  = cfg.owner  || 'parasktz';
   const repo   = cfg.repo   || 'CultureBotEval';
   const folder = cfg.folder || 'reports';
-  const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/${folder}/${filename}`;
   const ghUrl  = `https://github.com/${owner}/${repo}/blob/main/${folder}/${filename}`;
-  const sessions = data.sessions||{};
+  const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/${folder}/${filename}`;
   await db.ref('reports').push({
     filename, type,
-    createdAt: new Date().toLocaleString('el-GR'),
+    createdAt:    new Date().toLocaleString('el-GR'),
     url: ghUrl, rawUrl,
-    sessionCount: Object.keys(sessions).length,
+    sessionCount: Object.keys(data.sessions||{}).length,
     latest: true
   });
-  // Mark previous of same type as not latest
   const snap = await db.ref('reports').orderByChild('type').equalTo(type).once('value');
-  const updates={};
+  const updates = {};
   snap.forEach(c=>{
     if(c.val().filename!==filename) updates[`reports/${c.key}/latest`]=false;
   });
   if(Object.keys(updates).length) await db.ref().update(updates);
 }
 
-async function updateLatestPointer(f1,f2){
+async function updateLatestPointer(f1, f2){
   const owner  = cfg.owner  || 'parasktz';
   const repo   = cfg.repo   || 'CultureBotEval';
   const folder = cfg.folder || 'reports';
@@ -605,19 +714,18 @@ async function updateLatestPointer(f1,f2){
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   ████  FILE 1 BUILDER — SESSION STATISTICS
+   FILE 1 — SESSION STATISTICS
 ═══════════════════════════════════════════════════════════════════ */
 function buildFile1(data){
-  const sessions  = data.sessions  || {};
-  const allKeys   = Object.keys(sessions);
+  const sessions = data.sessions || {};
+  const allKeys  = Object.keys(sessions);
 
-  // Group by personaTitle
   const byPersona = {};
   allKeys.forEach(k=>{
-    const s = sessions[k];
+    const s  = sessions[k];
     const pt = s.personaTitle || 'Unknown';
-    if(!byPersona[pt]) byPersona[pt] = {};
-    const q = s.query||'';
+    const q  = s.query || '';
+    if(!byPersona[pt])    byPersona[pt]    = {};
     if(!byPersona[pt][q]) byPersona[pt][q] = new Set();
     byPersona[pt][q].add(detectLLM(s));
   });
@@ -632,14 +740,10 @@ function buildFile1(data){
     'ChatGPT':'chatgpt','Gemini':'gemini',
     'SearchCultureBot v1':'scb1','SearchCultureBot v2':'scb2','SearchCultureBot v3':'scb3'
   };
-
-  function llmChip(l){
-    const cls=LLM_CLASSES[l]||'';
-    return `<span class="llm ${cls}">${esc(l)}</span>`;
-  }
+  const llmChip = l=>`<span class="llm ${LLM_CLASSES[l]||''}">${esc(l)}</span>`;
 
   const rolesHtml = personaLabels.map(pt=>{
-    const qMap = byPersona[pt];
+    const qMap  = byPersona[pt];
     const qKeys = Object.keys(qMap);
     const totalSessions = qKeys.reduce((a,q)=>a+qMap[q].size,0);
     const rows = qKeys.map((q,i)=>`
@@ -667,8 +771,6 @@ function buildFile1(data){
     ['ChatGPT','chatgpt'],['Gemini','gemini'],
     ['SearchCultureBot v1','scb1'],['SearchCultureBot v2','scb2'],['SearchCultureBot v3','scb3']
   ].map(([l,c])=>`<span class="llm ${c}" style="padding:3px 10px;font-size:12px;">${l}</span>`).join('');
-
-  const genDate = new Date().toLocaleDateString('el-GR');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -718,7 +820,7 @@ h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
 <body>
 <div class="wrap">
 <h1>CultureBotEval — Session Statistics</h1>
-<div class="subtitle">${allKeys.length} sessions · ${llmList.length} LLMs · ${genDate}</div>
+<div class="subtitle">${allKeys.length} sessions · ${llmList.length} LLMs · ${new Date().toLocaleDateString('el-GR')}</div>
 <div class="summary">
   <div class="stat"><div class="stat-lbl">Sessions</div><div class="stat-val">${allKeys.length}</div></div>
   <div class="stat"><div class="stat-lbl">Persona Groups</div><div class="stat-val">${personaLabels.length}</div></div>
@@ -734,82 +836,62 @@ ${rolesHtml}
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   ████  FILE 2 BUILDER — CRITERIA BAR CHARTS
+   FILE 2 — CRITERIA BAR CHARTS
 ═══════════════════════════════════════════════════════════════════ */
 function buildFile2(data){
   const sessions = data.sessions || {};
   const CRITERIA = [
-    {key:'hallucination',     label:'1. Hallucination',    max:1},
-    {key:'queryRelevance',    label:'2. Query Relevance',  max:2},
-    {key:'justification',     label:'3. Justification',    max:3},
+    {key:'hallucination',     label:'1. Hallucination',     max:1},
+    {key:'queryRelevance',    label:'2. Query Relevance',   max:2},
+    {key:'justification',     label:'3. Justification',     max:3},
     {key:'evidenceGrounding', label:'4. Evidence Grounding',max:2},
-    {key:'clarity',           label:'5. Clarity',          max:2},
-    {key:'resultUsefulness',  label:'6. Result Usefulness',max:2},
+    {key:'clarity',           label:'5. Clarity',           max:2},
+    {key:'resultUsefulness',  label:'6. Result Usefulness', max:2},
   ];
-
   const LLM_COLORS = {
-    'ChatGPT':              {bg:'rgba(249,168,77,0.85)',   border:'#f9a84d'},
-    'Gemini':               {bg:'rgba(66,183,100,0.85)',   border:'#42b764'},
-    'SearchCultureBot v1':  {bg:'rgba(43,127,212,0.85)',   border:'#2b7fd4'},
-    'SearchCultureBot v2':  {bg:'rgba(126,87,194,0.85)',   border:'#7e57c2'},
-    'SearchCultureBot v3':  {bg:'rgba(220,75,100,0.85)',   border:'#dc4b64'},
+    'ChatGPT':             {bg:'rgba(249,168,77,0.85)',  border:'#f9a84d'},
+    'Gemini':              {bg:'rgba(66,183,100,0.85)',  border:'#42b764'},
+    'SearchCultureBot v1': {bg:'rgba(43,127,212,0.85)',  border:'#2b7fd4'},
+    'SearchCultureBot v2': {bg:'rgba(126,87,194,0.85)',  border:'#7e57c2'},
+    'SearchCultureBot v3': {bg:'rgba(220,75,100,0.85)',  border:'#dc4b64'},
   };
 
-  // Group: persona → query → llm → scores
   const byPersona = {};
   Object.values(sessions).forEach(s=>{
-    const pt  = s.personaTitle||'Unknown';
-    const q   = s.query||'';
+    const pt  = s.personaTitle || 'Unknown';
+    const q   = s.query || '';
     const llm = detectLLM(s);
-    if(!byPersona[pt]) byPersona[pt]={};
-    if(!byPersona[pt][q]) byPersona[pt][q]={};
-    if(s.scores) byPersona[pt][q][llm] = s.scores;
+    if(!byPersona[pt])    byPersona[pt]    = {};
+    if(!byPersona[pt][q]) byPersona[pt][q] = {};
+    if(s.scores)          byPersona[pt][q][llm] = s.scores;
   });
 
-  // Build chart configs
   const charts = [];
-  let chartIdx = 0;
+  let idx = 0;
   Object.entries(byPersona).forEach(([persona, qMap])=>{
     Object.entries(qMap).forEach(([query, llmMap])=>{
-      const llmsWithScores = Object.entries(llmMap);
-      if(!llmsWithScores.length) return;
-      const id = `chart_${chartIdx++}`;
-      const datasets = llmsWithScores.map(([llm, scores])=>{
-        const color = LLM_COLORS[llm] || {bg:'rgba(150,150,150,0.8)',border:'#999'};
-        return {
-          label: llm,
-          data: CRITERIA.map(c=>scores[c.key]??null),
-          backgroundColor: color.bg,
-          borderColor: color.border,
-          borderWidth:1
-        };
+      const pairs = Object.entries(llmMap);
+      if(!pairs.length) return;
+      const id       = `chart_${idx++}`;
+      const datasets = pairs.map(([llm, scores])=>{
+        const color = LLM_COLORS[llm]||{bg:'rgba(150,150,150,0.8)',border:'#999'};
+        return {label:llm, data:CRITERIA.map(c=>scores[c.key]??null),
+                backgroundColor:color.bg, borderColor:color.border, borderWidth:1};
       });
       charts.push({id, persona, query, datasets});
     });
   });
 
-  // Generate chart blocks HTML
-  const hasScores = charts.length > 0;
-  const noDataMsg = `<div style="padding:2rem;text-align:center;color:#888;font-size:14px;">
-    No evaluation scores found in the database.<br>
-    <small>Add scores to sessions under the <code>scores</code> field.</small></div>`;
-
+  const hasScores   = charts.length > 0;
   const chartBlocks = charts.map(c=>`
   <div class="chart-block">
     <div class="chart-persona">${esc(c.persona)}</div>
     <div class="chart-query">${esc(c.query)}</div>
-    <div class="chart-wrap">
-      <canvas id="${c.id}"></canvas>
-    </div>
+    <div class="chart-wrap"><canvas id="${c.id}"></canvas></div>
   </div>`).join('');
 
-  const chartData = JSON.stringify(charts.map(c=>({
-    id:c.id, datasets:c.datasets,
-    labels: CRITERIA.map(cr=>cr.label),
-    maxes:  CRITERIA.map(cr=>cr.max)
-  })));
-
-  const genDate = new Date().toLocaleDateString('el-GR');
+  const chartData  = JSON.stringify(charts.map(c=>({id:c.id, datasets:c.datasets, labels:CRITERIA.map(cr=>cr.label)})));
+  const colorsJSON = JSON.stringify(LLM_COLORS);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -819,42 +901,32 @@ function buildFile2(data){
 <title>CultureBotEval — Criteria Charts</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>
 <style>
-:root{--bg:#f7f6f2;--card:#fff;--border:rgba(0,0,0,.08);--text:#1a1a14;
-  --muted:#6a6a60;--accent:#1a5ba8;--r:10px;}
+:root{--bg:#f7f6f2;--card:#fff;--border:rgba(0,0,0,.08);--text:#1a1a14;--muted:#6a6a60;--accent:#1a5ba8;--r:10px;}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-     background:var(--bg);color:var(--text);padding:2rem 1.25rem 4rem;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:2rem 1.25rem 4rem;}
 .wrap{max-width:1100px;margin:0 auto;}
 h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
 .subtitle{font-size:13px;color:var(--muted);margin-bottom:.5rem;}
 .legend-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:2rem;margin-top:.8rem;}
 .leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);}
 .leg-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0;}
-.section-head{font-size:15px;font-weight:600;color:var(--accent);margin:2.5rem 0 1rem;
-              padding-bottom:.5rem;border-bottom:1.5px solid var(--border);}
-.chart-block{background:var(--card);border:.5px solid var(--border);border-radius:var(--r);
-             margin-bottom:1.25rem;overflow:hidden;}
-.chart-persona{font-size:11px;font-weight:600;color:var(--accent);padding:.7rem 1.25rem .1rem;
-               text-transform:uppercase;letter-spacing:.07em;}
+.chart-block{background:var(--card);border:.5px solid var(--border);border-radius:var(--r);margin-bottom:1.25rem;overflow:hidden;}
+.chart-persona{font-size:11px;font-weight:600;color:var(--accent);padding:.7rem 1.25rem .1rem;text-transform:uppercase;letter-spacing:.07em;}
 .chart-query{font-size:13px;color:var(--text);padding:0 1.25rem .75rem;line-height:1.5;}
 .chart-wrap{padding:.5rem 1.25rem 1.25rem;height:220px;position:relative;}
-.empty-note{padding:2rem;text-align:center;color:var(--muted);font-size:14px;}
-.gen-info{font-size:11px;color:var(--muted);margin-top:2rem;padding-top:1rem;
-          border-top:.5px solid var(--border);font-family:monospace;}
-.criteria-note{background:#e8f2fc;border:.5px solid rgba(43,127,212,.2);border-radius:8px;
-               padding:.8rem 1rem;margin-bottom:1.5rem;font-size:12px;color:#0a3d6e;line-height:1.6;}
+.criteria-note{background:#e8f2fc;border:.5px solid rgba(43,127,212,.2);border-radius:8px;padding:.8rem 1rem;margin-bottom:1.5rem;font-size:12px;color:#0a3d6e;line-height:1.6;}
+.empty-note{padding:3rem;text-align:center;color:var(--muted);font-size:14px;}
+.gen-info{font-size:11px;color:var(--muted);margin-top:2rem;padding-top:1rem;border-top:.5px solid var(--border);font-family:monospace;}
 </style>
 </head>
 <body>
 <div class="wrap">
 <h1>CultureBotEval — Evaluation Criteria Charts</h1>
-<div class="subtitle">Per persona × query grouped bar chart · ${genDate}</div>
-
+<div class="subtitle">Per persona × query grouped bar chart · ${new Date().toLocaleDateString('el-GR')}</div>
 <div class="legend-bar">
   <span style="font-size:12px;color:var(--muted);margin-right:4px;">LLMs:</span>
-  ${Object.entries(LLM_COLORS||{}).map(([l,c])=>`<span class="leg"><span class="leg-dot" style="background:${c.bg};border:1px solid ${c.border};"></span>${l}</span>`).join('')}
+  ${Object.entries(LLM_COLORS).map(([l,c])=>`<span class="leg"><span class="leg-dot" style="background:${c.bg};border:1px solid ${c.border};"></span>${l}</span>`).join('')}
 </div>
-
 <div class="criteria-note">
   <strong>Evaluation Criteria:</strong>
   1. Hallucination Flag (0–1) &nbsp;·&nbsp;
@@ -864,34 +936,25 @@ h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
   5. Clarity (0–2) &nbsp;·&nbsp;
   6. Result Usefulness (0–2)
 </div>
-
-${hasScores ? chartBlocks : noDataMsg}
-
+${hasScores ? chartBlocks : '<div class="empty-note">No evaluation scores found.<br><small>Add a <code>scores</code> object to sessions in Firebase.</small></div>'}
 <div class="gen-info">Generated: ${new Date().toISOString()} · CultureBotEval Admin</div>
 </div>
-
 <script>
-const LLM_COLORS = ${JSON.stringify(LLM_COLORS)};
-const CHARTS = ${chartData};
-function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
-
+const CHARTS=${chartData};
 CHARTS.forEach(c=>{
-  const canvas = document.getElementById(c.id);
+  const canvas=document.getElementById(c.id);
   if(!canvas) return;
   new Chart(canvas,{
     type:'bar',
-    data:{labels:c.labels, datasets:c.datasets},
+    data:{labels:c.labels,datasets:c.datasets},
     options:{
-      indexAxis:'y',
-      responsive:true,
-      maintainAspectRatio:false,
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{position:'bottom',labels:{font:{size:11},boxWidth:12,padding:10}},
         tooltip:{callbacks:{label:ctx=>\` \${ctx.dataset.label}: \${ctx.raw??'n/a'}\`}}
       },
       scales:{
-        x:{min:0,max:3,ticks:{stepSize:1,font:{size:11}},
-           title:{display:true,text:'Score',font:{size:11}}},
+        x:{min:0,max:3,ticks:{stepSize:1,font:{size:11}},title:{display:true,text:'Score',font:{size:11}}},
         y:{ticks:{font:{size:11}}}
       }
     }
@@ -902,7 +965,7 @@ CHARTS.forEach(c=>{
 }
 
 /* helper */
-function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 </script>
 </body>
