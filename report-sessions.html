@@ -148,21 +148,37 @@ const auth = firebase.auth();
 const db   = firebase.database();
 
 auth.onAuthStateChanged(async user => {
-  if(!user){
-    show('screen-login');
-    return;
-  }
-  // Check role
-  const [adminSnap, creatorSnap] = await Promise.all([
-    db.ref('admins/' + user.uid).once('value'),
-    db.ref('verified_creators/' + user.uid).once('value')
-  ]);
-  const allowed = adminSnap.exists() || creatorSnap.exists();
+  if(!user){ show('screen-login'); return; }
+
+  let allowed = false;
+
+  // 1. Check verified_creators by UID (all auth users can read this)
+  try {
+    const snap = await db.ref('verified_creators/' + user.uid).once('value');
+    if(snap.exists()) allowed = true;
+  } catch(e){}
+
+  // 2. If not found by UID, scan verified_creators for matching email
   if(!allowed){
-    showUser(user.email);
-    show('screen-denied');
-    return;
+    try {
+      const snap = await db.ref('verified_creators').once('value');
+      const vc   = snap.val() || {};
+      Object.values(vc).forEach(v => {
+        if(v === true) return;
+        if(v && (v.email === user.email || v.uid === user.uid)) allowed = true;
+      });
+    } catch(e){}
   }
+
+  // 3. Check admins (may throw for non-admins — wrapped in try/catch)
+  if(!allowed){
+    try {
+      const snap = await db.ref('admins/' + user.uid).once('value');
+      if(snap.exists()) allowed = true;
+    } catch(e){}
+  }
+
+  if(!allowed){ showUser(user.email); show('screen-denied'); return; }
   showUser(user.email);
   await loadReport(user);
 });
