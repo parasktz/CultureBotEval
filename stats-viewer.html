@@ -57,7 +57,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 
 .tab-bar{
   background:var(--card);border-bottom:.5px solid var(--border);
-  padding:0 2rem;display:flex;gap:0;
+  padding:0 2rem;display:flex;
 }
 .tab{
   padding:.75rem 1.25rem;font-size:13px;cursor:pointer;color:var(--muted);
@@ -135,53 +135,63 @@ iframe{width:100%;height:100%;border:none;display:block;}
 </div>
 
 <script>
-/* ── Firebase config — same as admin.html ── */
+/* ── Firebase config — ίδιο με admin.html ── */
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  apiKey:            "YOUR_API_KEY",
   authDomain:        "cultureboteval.firebaseapp.com",
   databaseURL:       "https://cultureboteval-default-rtdb.firebaseio.com",
   projectId:         "cultureboteval",
-  storageBucket:     "cultureboteval.appspot.com",
-  messagingSenderId: "XXXXXXXXXXXX",
-  appId:             "1:XXXXXXXXXXXX:web:XXXXXXXXXXXXXXXX"
+  storageBucket:     "cultureboteval.firebasestorage.app",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
 const db   = firebase.database();
 
-let currentTab = 'stats';
-let loaded = {stats:false, criteria:false};
-
 auth.onAuthStateChanged(async user=>{
   if(user){
-    document.getElementById('auth-gate').style.display='none';
-    document.getElementById('app').style.display='block';
-    document.getElementById('user-label').textContent = user.email;
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('app').style.display       = 'block';
+    document.getElementById('user-label').textContent  = user.email;
+
+    /* Αποθήκευσε/ενημέρωσε χρήστη στο Firebase — ώστε να φαίνεται στο admin Users */
+    await db.ref('users/' + user.uid).set({
+      email:     user.email,
+      lastLogin: new Date().toISOString()
+    });
+
     await loadLatestReports();
   }
 });
 
 async function doLogin(){
-  const e=document.getElementById('email').value;
-  const p=document.getElementById('pass').value;
+  const e = document.getElementById('email').value;
+  const p = document.getElementById('pass').value;
   try{
-    await auth.signInWithEmailAndPassword(e,p);
+    await auth.signInWithEmailAndPassword(e, p);
   }catch(err){
-    document.getElementById('err').textContent=err.message;
+    document.getElementById('err').textContent = err.message;
   }
 }
-async function doLogout(){ await auth.signOut(); location.reload(); }
+
+async function doLogout(){
+  await auth.signOut();
+  location.reload();
+}
 
 async function loadLatestReports(){
   try{
-    const snap = await db.ref('latestReports').once('value');
+    const snap   = await db.ref('latestReports').once('value');
     const latest = snap.val();
-    if(!latest){ showNoReport('stats'); showNoReport('criteria'); return; }
-    if(latest.stats)    loadFrame('stats',    latest.stats);
-    else                showNoReport('stats');
-    if(latest.criteria) loadFrame('criteria', latest.criteria);
-    else                showNoReport('criteria');
+    if(!latest){
+      showNoReport('stats');
+      showNoReport('criteria');
+      return;
+    }
+    latest.stats    ? loadFrame('stats',    latest.stats)    : showNoReport('stats');
+    latest.criteria ? loadFrame('criteria', latest.criteria) : showNoReport('criteria');
   }catch(e){
     showNoReport('stats');
     showNoReport('criteria');
@@ -189,36 +199,33 @@ async function loadLatestReports(){
 }
 
 function loadFrame(type, rawUrl){
-  /* Fetch raw HTML from GitHub and inject into iframe via srcdoc */
-  const loadEl  = document.getElementById('load-'+type);
-  const frameEl = document.getElementById('frame-'+type);
+  const loadEl  = document.getElementById('load-'  + type);
+  const frameEl = document.getElementById('frame-' + type);
   fetch(rawUrl)
-    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+    .then(r=>{ if(!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
     .then(html=>{
-      frameEl.srcdoc = html;
+      frameEl.srcdoc        = html;
       loadEl.style.display  = 'none';
       frameEl.style.display = 'block';
-      loaded[type] = true;
     })
     .catch(()=>{ loadEl.style.display='none'; showNoReport(type); });
 }
 
 function showNoReport(type){
-  const pane = document.getElementById('pane-'+type);
-  const load = document.getElementById('load-'+type);
-  if(load) load.style.display='none';
-  pane.innerHTML=`<div class="no-report">
+  const pane = document.getElementById('pane-' + type);
+  const load = document.getElementById('load-' + type);
+  if(load) load.style.display = 'none';
+  pane.innerHTML = `<div class="no-report">
     <strong>No report available</strong>
     <span>Ask the admin to generate and publish a report.</span>
   </div>`;
 }
 
 function switchTab(tab){
-  currentTab = tab;
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('tab-'+tab).classList.add('active');
-  document.getElementById('pane-stats').style.display    = tab==='stats'    ? 'block':'none';
-  document.getElementById('pane-criteria').style.display = tab==='criteria' ? 'block':'none';
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('pane-stats').style.display    = tab==='stats'    ? 'block' : 'none';
+  document.getElementById('pane-criteria').style.display = tab==='criteria' ? 'block' : 'none';
 }
 </script>
 </body>
