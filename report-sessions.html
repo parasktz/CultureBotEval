@@ -66,8 +66,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
                 max-width:380px;text-align:center;line-height:1.6;}
 
 /* IFRAME */
-#frame-wrap{flex:1;display:none;}
-iframe{width:100%;height:100%;border:none;display:block;}
+#frame-wrap{
+  display:none;
+  width:100%;
+  height:calc(100vh - 53px);
+  overflow:hidden;
+  flex-shrink:0;
+}
+iframe{
+  width:100%;
+  height:100%;
+  border:none;
+  display:block;
+}
 </style>
 </head>
 <body>
