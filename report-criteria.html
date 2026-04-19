@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CultureBotEval — Criteria Charts</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#f7f6f2;--card:#fff;--border:rgba(0,0,0,.08);
+  --text:#1a1a14;--muted:#6a6a60;--accent:#1a5ba8;
+  --blue:#2b7fd4;--blue-bg:#e8f2fc;--blue-t:#0a3d6e;--r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+     background:var(--bg);color:var(--text);}
+
+/* ── TOPBAR ── */
+.topbar{
+  background:var(--card);border-bottom:.5px solid var(--border);
+  padding:.8rem 2rem;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:10;
+}
+.topbar-left{display:flex;align-items:center;gap:10px;}
+.topbar-logo{font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;}
+.topbar-title{font-size:15px;font-weight:500;color:var(--blue-t);}
+.back-link{font-size:12px;color:var(--blue);text-decoration:none;margin-right:4px;}
+.back-link:hover{text-decoration:underline;}
+.topbar-right{display:flex;align-items:center;gap:12px;}
+.user-pill{font-size:11px;background:var(--blue-bg);color:var(--blue-t);
+           padding:3px 10px;border-radius:20px;}
+.signout{font-size:12px;color:var(--muted);cursor:pointer;border:none;
+         background:none;text-decoration:underline;font-family:inherit;}
+
+/* ── STATES ── */
+.state-screen{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:calc(100vh - 53px);gap:12px;color:var(--muted);font-size:14px;
+}
+.spinner{width:28px;height:28px;border:2.5px solid var(--border);
+         border-top-color:var(--blue);border-radius:50%;
+         animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── CONTENT ── */
+#content{display:none;padding:2rem 1.25rem 4rem;}
+.wrap{max-width:1100px;margin:0 auto;}
+h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
+.subtitle{font-size:13px;color:var(--muted);margin-bottom:.5rem;}
+
+.legend-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1.5rem;margin-top:.8rem;
+            align-items:center;}
+.leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);}
+.leg-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0;}
+.leg-lbl{font-size:12px;color:var(--muted);margin-right:4px;}
+
+.criteria-note{
+  background:#e8f2fc;border:.5px solid rgba(43,127,212,.2);border-radius:8px;
+  padding:.8rem 1rem;margin-bottom:1.5rem;font-size:12px;color:#0a3d6e;line-height:1.7;
+}
+
+.persona-section{margin-bottom:2.5rem;}
+.persona-heading{
+  font-size:13px;font-weight:700;color:var(--accent);
+  text-transform:uppercase;letter-spacing:.08em;
+  padding:.5rem 0;margin-bottom:.75rem;
+  border-bottom:1.5px solid var(--border);
+}
+
+.chart-block{
+  background:var(--card);border:.5px solid var(--border);border-radius:var(--r);
+  margin-bottom:1rem;overflow:hidden;
+}
+.chart-query{
+  font-size:13px;color:var(--text);
+  padding:.85rem 1.25rem .6rem;line-height:1.5;border-bottom:.5px solid var(--border);
+}
+.chart-wrap{padding:.75rem 1.25rem 1.25rem;height:240px;position:relative;}
+
+.empty-note{
+  padding:3rem;text-align:center;color:var(--muted);font-size:14px;line-height:1.8;
+}
+
+.gen-info{font-size:11px;color:var(--muted);margin-top:2rem;padding-top:1rem;
+          border-top:.5px solid var(--border);font-family:monospace;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <a class="back-link" href="statistics.html">← Back</a>
+    <span class="topbar-logo">CultureBotEval</span>
+    <span style="color:rgba(0,0,0,.15)">|</span>
+    <span class="topbar-title">Criteria Bar Charts</span>
+  </div>
+  <div class="topbar-right">
+    <span class="user-pill" id="user-label"></span>
+    <button class="signout" onclick="doLogout()">Sign out</button>
+  </div>
+</div>
+
+<div class="state-screen" id="loading">
+  <div class="spinner"></div>
+  Loading data from Firebase…
+</div>
+
+<div class="state-screen" id="no-auth" style="display:none;">
+  <span style="font-size:28px;">🔒</span>
+  <strong style="color:var(--text);">Access denied</strong>
+  <span>Please <a href="statistics.html" style="color:var(--blue);">sign in</a> first.</span>
+</div>
+
+<div id="content">
+  <div class="wrap">
+    <h1>CultureBotEval — Evaluation Criteria Charts</h1>
+    <div class="subtitle" id="subtitle"></div>
+
+    <div class="legend-bar" id="legend">
+      <span class="leg-lbl">LLMs:</span>
+    </div>
+
+    <div class="criteria-note">
+      <strong>Evaluation Criteria &amp; Score Ranges:</strong><br>
+      1. Hallucination Flag (0–1) &nbsp;·&nbsp;
+      2. Query Relevance (0–2) &nbsp;·&nbsp;
+      3. Justification Quality (0–3) &nbsp;·&nbsp;
+      4. Evidence Grounding (0–2) &nbsp;·&nbsp;
+      5. Clarity (0–2) &nbsp;·&nbsp;
+      6. Result Usefulness (0–2)
+    </div>
+
+    <div id="charts-container"></div>
+    <div class="gen-info" id="gen-info"></div>
+  </div>
+</div>
+
+<script>
+const FIREBASE_CONFIG = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "cultureboteval.firebaseapp.com",
+  databaseURL:       "https://cultureboteval-default-rtdb.firebaseio.com",
+  projectId:         "cultureboteval",
+  storageBucket:     "cultureboteval.firebasestorage.app",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db   = firebase.database();
+
+const CRITERIA = [
+  {key:'hallucination',     label:'1. Hallucination Flag',   max:1},
+  {key:'queryRelevance',    label:'2. Query Relevance',      max:2},
+  {key:'justification',     label:'3. Justification Quality',max:3},
+  {key:'evidenceGrounding', label:'4. Evidence Grounding',   max:2},
+  {key:'clarity',           label:'5. Clarity',              max:2},
+  {key:'resultUsefulness',  label:'6. Result Usefulness',    max:2},
+];
+
+const LLM_COLORS = {
+  'ChatGPT':             {bg:'rgba(249,168,77,0.82)',  border:'#f9a84d'},
+  'Gemini':              {bg:'rgba(66,183,100,0.82)',  border:'#42b764'},
+  'SearchCultureBot v1': {bg:'rgba(43,127,212,0.82)',  border:'#2b7fd4'},
+  'SearchCultureBot v2': {bg:'rgba(126,87,194,0.82)',  border:'#7e57c2'},
+  'SearchCultureBot v3': {bg:'rgba(220,75,100,0.82)',  border:'#dc4b64'},
+};
+
+auth.onAuthStateChanged(async user => {
+  if(!user){
+    document.getElementById('loading').style.display  = 'none';
+    document.getElementById('no-auth').style.display  = 'flex';
+    return;
+  }
+  document.getElementById('user-label').textContent = user.email;
+  await buildReport();
+});
+
+async function doLogout(){
+  await auth.signOut();
+  window.location.href = 'statistics.html';
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function detectLLM(s){
+  const src = (s.llmSource||s.llmTitle||'').toLowerCase();
+  if(src.includes('chatgpt'))        return 'ChatGPT';
+  if(src.includes('gemini'))         return 'Gemini';
+  if(src.includes('v3'))             return 'SearchCultureBot v3';
+  if(src.includes('v2'))             return 'SearchCultureBot v2';
+  if(src.includes('searchculture')||src.includes('bot')) return 'SearchCultureBot v1';
+  const t = s.llmTitle||'';
+  if(t.endsWith('ChatGPT'))          return 'ChatGPT';
+  if(t.endsWith('Gemini'))           return 'Gemini';
+  if(t.includes('SearchCultureBot')) return t.split('–').pop().trim()||'SearchCultureBot v1';
+  return 'Unknown';
+}
+
+async function buildReport(){
+  const snap     = await db.ref('sessions').once('value');
+  const sessions = snap.val() || {};
+  const allKeys  = Object.keys(sessions);
+
+  // Group: persona → query → llm → scores
+  const byPersona = {};
+  allKeys.forEach(k => {
+    const s   = sessions[k];
+    const pt  = s.personaTitle || 'Unknown';
+    const q   = s.query || '';
+    const llm = detectLLM(s);
+    if(!byPersona[pt])    byPersona[pt]    = {};
+    if(!byPersona[pt][q]) byPersona[pt][q] = {};
+    if(s.scores)          byPersona[pt][q][llm] = s.scores;
+  });
+
+  // Build legend
+  const usedLLMs = new Set();
+  allKeys.forEach(k => usedLLMs.add(detectLLM(sessions[k])));
+  const legendBar = document.getElementById('legend');
+  Object.entries(LLM_COLORS).forEach(([llm, color]) => {
+    if(!usedLLMs.has(llm)) return;
+    const span = document.createElement('span');
+    span.className = 'leg';
+    span.innerHTML = `<span class="leg-dot" style="background:${color.bg};border:1px solid ${color.border};"></span>${esc(llm)}`;
+    legendBar.appendChild(span);
+  });
+
+  const container = document.getElementById('charts-container');
+  let chartIdx    = 0;
+  let totalCharts = 0;
+
+  Object.entries(byPersona).forEach(([persona, qMap]) => {
+    const section = document.createElement('div');
+    section.className = 'persona-section';
+    section.innerHTML = `<div class="persona-heading">${esc(persona)}</div>`;
+
+    Object.entries(qMap).forEach(([query, llmMap]) => {
+      const pairs = Object.entries(llmMap);
+      if(!pairs.length) return;
+
+      const id     = `chart_${chartIdx++}`;
+      const block  = document.createElement('div');
+      block.className = 'chart-block';
+      block.innerHTML = `
+        <div class="chart-query">${esc(query)}</div>
+        <div class="chart-wrap"><canvas id="${id}"></canvas></div>`;
+      section.appendChild(block);
+      totalCharts++;
+
+      // Build datasets
+      const datasets = pairs.map(([llm, scores]) => {
+        const color = LLM_COLORS[llm] || {bg:'rgba(150,150,150,0.8)', border:'#999'};
+        return {
+          label: llm,
+          data:  CRITERIA.map(c => scores[c.key] ?? null),
+          backgroundColor: color.bg,
+          borderColor:     color.border,
+          borderWidth: 1
+        };
+      });
+
+      // Render chart after DOM insert
+      requestAnimationFrame(() => {
+        const canvas = document.getElementById(id);
+        if(!canvas) return;
+        new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels:   CRITERIA.map(c => c.label),
+            datasets
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {font:{size:11}, boxWidth:12, padding:10}
+              },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` ${ctx.dataset.label}: ${ctx.raw ?? 'n/a'}`
+                }
+              }
+            },
+            scales: {
+              x: {
+                min: 0, max: 3,
+                ticks: {stepSize:1, font:{size:11}},
+                title: {display:true, text:'Score', font:{size:11}}
+              },
+              y: {ticks: {font:{size:11}}}
+            }
+          }
+        });
+      });
+    });
+
+    if(section.children.length > 1) container.appendChild(section);
+  });
+
+  if(totalCharts === 0){
+    container.innerHTML = `<div class="empty-note">
+      No evaluation scores found in the database.<br>
+      <small>Add a <code>scores</code> object to sessions in Firebase to see charts here.</small>
+    </div>`;
+  }
+
+  document.getElementById('subtitle').textContent =
+    `${allKeys.length} sessions · ${new Date().toLocaleDateString('el-GR')}`;
+  document.getElementById('gen-info').textContent =
+    `Generated dynamically: ${new Date().toISOString()}`;
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+}
+</script>
+</body>
+</html>

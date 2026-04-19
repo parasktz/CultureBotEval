@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CultureBotEval — Session Statistics</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+:root{
+  --bg:#f4f3ee;--card:#fff;--border:rgba(0,0,0,.09);
+  --text:#18180f;--muted:#68685f;
+  --blue:#2b7fd4;--blue-bg:#e8f2fc;--blue-t:#0a3d6e;
+  --green-bg:#e0f4ec;--green-t:#074d35;--r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+     background:var(--bg);color:var(--text);}
+
+/* ── TOPBAR ── */
+.topbar{
+  background:var(--card);border-bottom:.5px solid var(--border);
+  padding:.8rem 2rem;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:10;
+}
+.topbar-left{display:flex;align-items:center;gap:10px;}
+.topbar-logo{font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;}
+.topbar-title{font-size:15px;font-weight:500;color:var(--blue-t);}
+.back-link{font-size:12px;color:var(--blue);text-decoration:none;margin-right:4px;}
+.back-link:hover{text-decoration:underline;}
+.topbar-right{display:flex;align-items:center;gap:12px;}
+.user-pill{font-size:11px;background:var(--blue-bg);color:var(--blue-t);
+           padding:3px 10px;border-radius:20px;}
+.signout{font-size:12px;color:var(--muted);cursor:pointer;border:none;
+         background:none;text-decoration:underline;font-family:inherit;}
+
+/* ── LOADING / ERROR ── */
+.state-screen{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:calc(100vh - 53px);gap:12px;color:var(--muted);font-size:14px;
+}
+.spinner{width:28px;height:28px;border:2.5px solid var(--border);
+         border-top-color:var(--blue);border-radius:50%;
+         animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── CONTENT ── */
+#content{display:none;padding:2rem 1.25rem 4rem;}
+.wrap{max-width:980px;margin:0 auto;}
+h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
+.subtitle{font-size:13px;color:var(--muted);margin-bottom:2rem;}
+
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+         gap:10px;margin-bottom:2rem;}
+.stat{background:var(--card);border:.5px solid var(--border);
+      border-radius:var(--r);padding:.9rem 1.1rem;}
+.stat-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;
+          letter-spacing:.06em;margin-bottom:3px;}
+.stat-val{font-size:26px;font-weight:500;color:var(--blue-t);}
+
+.role-block{background:var(--card);border:.5px solid var(--border);
+            border-radius:var(--r);margin-bottom:1.25rem;overflow:hidden;}
+.role-head{padding:.85rem 1.25rem;background:var(--blue-bg);
+           border-bottom:.5px solid rgba(43,127,212,.18);
+           display:flex;align-items:flex-start;justify-content:space-between;
+           gap:10px;flex-wrap:wrap;}
+.role-text{font-size:14px;font-weight:600;color:var(--blue-t);line-height:1.5;}
+.badges{display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;margin-top:2px;}
+.badge{font-size:11px;border-radius:4px;padding:2px 8px;font-weight:500;white-space:nowrap;}
+.b-blue{background:var(--blue-bg);color:var(--blue-t);border:.5px solid rgba(43,127,212,.2);}
+.b-green{background:var(--green-bg);color:var(--green-t);}
+
+.q-list{padding:.4rem 0;}
+.q-row{padding:.65rem 1.25rem;border-bottom:.5px solid var(--border);
+       display:flex;align-items:flex-start;gap:10px;}
+.q-row:last-child{border-bottom:none;}
+.q-idx{min-width:22px;height:22px;border-radius:50%;background:var(--bg);
+       color:var(--muted);font-size:10px;font-weight:700;
+       display:flex;align-items:center;justify-content:center;
+       flex-shrink:0;margin-top:2px;}
+.q-body{flex:1;min-width:0;}
+.q-text{font-size:13px;line-height:1.6;margin-bottom:6px;word-break:break-word;}
+.llms{display:flex;flex-wrap:wrap;gap:4px;}
+.llm{font-size:11px;border-radius:4px;padding:2px 9px;
+     border:.5px solid var(--border);color:var(--muted);background:var(--bg);}
+.llm.chatgpt{background:#fff3e0;color:#7a3c00;border-color:rgba(122,60,0,.15);}
+.llm.gemini {background:#e8f5e9;color:#1b5e20;border-color:rgba(27,94,32,.15);}
+.llm.scb1   {background:var(--blue-bg);color:var(--blue-t);border-color:rgba(43,127,212,.15);}
+.llm.scb2   {background:#ede7f6;color:#4527a0;border-color:rgba(69,39,160,.15);}
+.llm.scb3   {background:#fce4ec;color:#880e4f;border-color:rgba(136,14,79,.15);}
+
+.legend{margin-top:1.5rem;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.leg-lbl{font-size:12px;color:var(--muted);margin-right:4px;}
+.gen-info{font-size:11px;color:var(--muted);margin-top:2rem;padding-top:1rem;
+          border-top:.5px solid var(--border);font-family:monospace;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <a class="back-link" href="statistics.html">← Back</a>
+    <span class="topbar-logo">CultureBotEval</span>
+    <span style="color:rgba(0,0,0,.15)">|</span>
+    <span class="topbar-title">Session Statistics</span>
+  </div>
+  <div class="topbar-right">
+    <span class="user-pill" id="user-label"></span>
+    <button class="signout" onclick="doLogout()">Sign out</button>
+  </div>
+</div>
+
+<!-- Loading -->
+<div class="state-screen" id="loading">
+  <div class="spinner"></div>
+  Loading data from Firebase…
+</div>
+
+<!-- Error / not auth -->
+<div class="state-screen" id="no-auth" style="display:none;">
+  <span style="font-size:28px;">🔒</span>
+  <strong style="color:var(--text);">Access denied</strong>
+  <span>Please <a href="statistics.html" style="color:var(--blue);">sign in</a> first.</span>
+</div>
+
+<!-- Content -->
+<div id="content">
+  <div class="wrap">
+    <h1>CultureBotEval — Session Statistics</h1>
+    <div class="subtitle" id="subtitle"></div>
+    <div class="summary" id="summary"></div>
+    <div id="roles"></div>
+    <div class="legend">
+      <span class="leg-lbl">LLMs:</span>
+      <span class="llm chatgpt" style="padding:3px 10px;font-size:12px;">ChatGPT</span>
+      <span class="llm gemini"  style="padding:3px 10px;font-size:12px;">Gemini</span>
+      <span class="llm scb1"    style="padding:3px 10px;font-size:12px;">SearchCultureBot v1</span>
+      <span class="llm scb2"    style="padding:3px 10px;font-size:12px;">SearchCultureBot v2</span>
+      <span class="llm scb3"    style="padding:3px 10px;font-size:12px;">SearchCultureBot v3</span>
+    </div>
+    <div class="gen-info" id="gen-info"></div>
+  </div>
+</div>
+
+<script>
+const FIREBASE_CONFIG = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "cultureboteval.firebaseapp.com",
+  databaseURL:       "https://cultureboteval-default-rtdb.firebaseio.com",
+  projectId:         "cultureboteval",
+  storageBucket:     "cultureboteval.firebasestorage.app",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db   = firebase.database();
+
+auth.onAuthStateChanged(async user => {
+  if(!user){
+    document.getElementById('loading').style.display  = 'none';
+    document.getElementById('no-auth').style.display  = 'flex';
+    return;
+  }
+  document.getElementById('user-label').textContent = user.email;
+  await buildReport();
+});
+
+async function doLogout(){
+  await auth.signOut();
+  window.location.href = 'statistics.html';
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function detectLLM(s){
+  const src = (s.llmSource||s.llmTitle||'').toLowerCase();
+  if(src.includes('chatgpt'))        return 'ChatGPT';
+  if(src.includes('gemini'))         return 'Gemini';
+  if(src.includes('v3'))             return 'SearchCultureBot v3';
+  if(src.includes('v2'))             return 'SearchCultureBot v2';
+  if(src.includes('searchculture')||src.includes('bot')) return 'SearchCultureBot v1';
+  const t = s.llmTitle||'';
+  if(t.endsWith('ChatGPT'))          return 'ChatGPT';
+  if(t.endsWith('Gemini'))           return 'Gemini';
+  if(t.includes('SearchCultureBot')) return t.split('–').pop().trim()||'SearchCultureBot v1';
+  return 'Unknown';
+}
+
+function llmClass(l){
+  if(l==='ChatGPT')              return 'chatgpt';
+  if(l==='Gemini')               return 'gemini';
+  if(l==='SearchCultureBot v1')  return 'scb1';
+  if(l==='SearchCultureBot v2')  return 'scb2';
+  if(l==='SearchCultureBot v3')  return 'scb3';
+  return '';
+}
+
+async function buildReport(){
+  const snap     = await db.ref('sessions').once('value');
+  const sessions = snap.val() || {};
+  const allKeys  = Object.keys(sessions);
+
+  // Group by persona → query → LLMs
+  const byPersona = {};
+  allKeys.forEach(k => {
+    const s  = sessions[k];
+    const pt = s.personaTitle || 'Unknown';
+    const q  = s.query || '';
+    if(!byPersona[pt])    byPersona[pt]    = {};
+    if(!byPersona[pt][q]) byPersona[pt][q] = new Set();
+    byPersona[pt][q].add(detectLLM(s));
+  });
+
+  const personaLabels = Object.keys(byPersona);
+  const totalQueries  = personaLabels.reduce((a,p) => a + Object.keys(byPersona[p]).length, 0);
+  const llmSet = new Set(allKeys.map(k => detectLLM(sessions[k])).filter(l => l !== 'Unknown'));
+
+  // Summary cards
+  document.getElementById('summary').innerHTML = `
+    <div class="stat"><div class="stat-lbl">Sessions</div><div class="stat-val">${allKeys.length}</div></div>
+    <div class="stat"><div class="stat-lbl">Persona Groups</div><div class="stat-val">${personaLabels.length}</div></div>
+    <div class="stat"><div class="stat-lbl">Unique Queries</div><div class="stat-val">${totalQueries}</div></div>
+    <div class="stat"><div class="stat-lbl">LLMs</div><div class="stat-val">${llmSet.size}</div></div>`;
+
+  document.getElementById('subtitle').textContent =
+    `${allKeys.length} sessions · ${llmSet.size} LLMs · ${new Date().toLocaleDateString('el-GR')}`;
+
+  // Persona blocks
+  const container = document.getElementById('roles');
+  personaLabels.forEach(pt => {
+    const qMap  = byPersona[pt];
+    const qKeys = Object.keys(qMap);
+    const totalSessions = qKeys.reduce((a,q) => a + qMap[q].size, 0);
+
+    const rows = qKeys.map((q,i) => `
+      <div class="q-row">
+        <div class="q-idx">${i+1}</div>
+        <div class="q-body">
+          <div class="q-text">${esc(q)}</div>
+          <div class="llms">
+            ${[...qMap[q]].map(l=>`<span class="llm ${llmClass(l)}">${esc(l)}</span>`).join('')}
+          </div>
+        </div>
+      </div>`).join('');
+
+    container.innerHTML += `
+      <div class="role-block">
+        <div class="role-head">
+          <div class="role-text">${esc(pt)}</div>
+          <div class="badges">
+            <span class="badge b-blue">${qKeys.length} quer${qKeys.length!==1?'ies':'y'}</span>
+            <span class="badge b-green">${totalSessions} session${totalSessions!==1?'s':''}</span>
+          </div>
+        </div>
+        <div class="q-list">${rows}</div>
+      </div>`;
+  });
+
+  document.getElementById('gen-info').textContent =
+    `Generated dynamically: ${new Date().toISOString()}`;
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+}
+</script>
+</body>
+</html>
