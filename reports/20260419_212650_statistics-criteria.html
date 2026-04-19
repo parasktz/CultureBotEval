@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CultureBotEval — Criteria Charts</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f7f6f2;--card:#fff;--border:rgba(0,0,0,.08);--text:#1a1a14;--muted:#6a6a60;--accent:#1a5ba8;--r:10px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:2rem 1.25rem 4rem;}
+.wrap{max-width:1140px;margin:0 auto;}
+h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
+.subtitle{font-size:13px;color:var(--muted);margin-bottom:.5rem;}
+.legend-bar{display:flex;flex-wrap:wrap;gap:8px;margin:.7rem 0 1.5rem;align-items:center;}
+.leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);}
+.leg-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0;}
+.criteria-note{background:#e8f2fc;border:.5px solid rgba(43,127,212,.2);border-radius:8px;
+               padding:.8rem 1rem;margin-bottom:2rem;font-size:12px;color:#0a3d6e;line-height:1.8;}
+/* QUERY BLOCK */
+.qblock{background:var(--card);border:.5px solid var(--border);border-radius:var(--r);
+        margin-bottom:2.5rem;overflow:hidden;}
+.qpersona{font-size:11px;font-weight:700;color:var(--accent);
+          padding:.8rem 1.25rem .1rem;text-transform:uppercase;letter-spacing:.09em;}
+.qtext{font-size:13px;color:var(--text);padding:.15rem 1.25rem .85rem;
+       line-height:1.55;border-bottom:.5px solid var(--border);}
+/* CHART */
+.chart-area{padding:1rem 1.25rem 1.25rem;height:320px;position:relative;}
+/* RANKING */
+.ranking-area{border-top:.5px solid var(--border);padding:1rem 1.25rem 1.5rem;background:#fafaf7;}
+.ranking-hd{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;
+            letter-spacing:.07em;margin-bottom:.75rem;}
+.tscroll{overflow-x:auto;}
+.rtable{width:100%;border-collapse:collapse;font-size:12px;}
+.rtable th{text-align:left;padding:.5rem .75rem;color:var(--muted);font-weight:500;
+           border-bottom:1.5px solid var(--border);font-size:11px;white-space:nowrap;
+           background:#f0efeb;}
+.th-crit{min-width:220px;}
+.rtable td{padding:.5rem .75rem;border-bottom:.5px solid rgba(0,0,0,.04);vertical-align:middle;}
+.rtable tr:last-child td{border-bottom:none;}
+.rtable tr:hover td{background:rgba(0,0,0,.015);}
+.crit-name{font-size:11px;color:var(--muted);white-space:nowrap;font-weight:500;}
+.medal{font-size:14px;margin-right:3px;}
+.lchip{display:inline-block;font-size:10px;padding:1px 7px;border-radius:4px;
+       border:.5px solid;font-weight:500;margin-right:3px;white-space:nowrap;}
+.sbadge{display:inline-block;font-size:10px;font-weight:700;color:var(--accent);
+        background:#e8f2fc;padding:1px 6px;border-radius:4px;margin-left:3px;}
+.na-cell{color:#ccc;font-size:11px;}
+/* MISC */
+.empty-note{padding:3rem;text-align:center;color:var(--muted);font-size:14px;line-height:1.8;}
+.gen-info{font-size:11px;color:var(--muted);margin-top:2rem;padding-top:1rem;
+          border-top:.5px solid var(--border);font-family:monospace;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>CultureBotEval — Evaluation Criteria Charts</h1>
+<div class="subtitle">Score: 3=Best · 0=Worst · Generated: 19/4/2026</div>
+
+<div class="legend-bar" id="leg-bar">
+  <span style="font-size:12px;color:var(--muted);margin-right:4px;">LLMs:</span>
+  <span class="leg"><span class="leg-dot" style="background:rgba(249,168,77,0.85);border:1px solid #f9a84d;"></span>ChatGPT</span><span class="leg"><span class="leg-dot" style="background:rgba(66,183,100,0.85);border:1px solid #42b764;"></span>Gemini</span><span class="leg"><span class="leg-dot" style="background:rgba(43,127,212,0.85);border:1px solid #2b7fd4;"></span>SearchCultureBot v1</span><span class="leg"><span class="leg-dot" style="background:rgba(126,87,194,0.85);border:1px solid #7e57c2;"></span>SearchCultureBot v2</span><span class="leg"><span class="leg-dot" style="background:rgba(220,75,100,0.85);border:1px solid #dc4b64;"></span>SearchCultureBot v3</span>
+</div>
+
+<div class="criteria-note">
+  <strong>Evaluation Criteria</strong> — Score: 3=Best · 0=Worst<br>
+  1. Hallucination Flag &nbsp;·&nbsp; 2. Query Relevance &nbsp;·&nbsp;
+  3. Justification Quality &nbsp;·&nbsp; 4. Evidence Grounding &nbsp;·&nbsp;
+  5. Clarity &nbsp;·&nbsp; 6. Result Usefulness &nbsp;·&nbsp;
+  7. Bias &nbsp;·&nbsp; 8. Diversity &nbsp;·&nbsp;
+  9. Completeness / Variety / Representative &nbsp;·&nbsp; 10. Needed Logical Steps
+</div>
+
+<div class="empty-note">No evaluations found.<br><small>Submit evaluations via the evaluation form first.</small></div>
+
+<div class="gen-info">Generated: 2026-04-19T18:26:51.741Z · CultureBotEval Admin</div>
+</div>
+
+<script>
+const CHARTS=[];
+CHARTS.forEach(c=>{
+  const canvas=document.getElementById(c.id);
+  if(!canvas) return;
+  new Chart(canvas,{
+    type:'bar',
+    data:{labels:c.labels,datasets:c.datasets},
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:11},boxWidth:12,padding:10}},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.raw??'n/a'}/3`}}
+      },
+      scales:{
+        x:{min:0,max:3,ticks:{stepSize:1,font:{size:11},
+           callback:v=>({0:'0',1:'1',2:'2',3:'3 ★'}[v]??v)},
+           title:{display:true,text:'Score (0=Worst · 3=Best)',font:{size:11}}},
+        y:{ticks:{font:{size:10},autoSkip:false}}
+      }
+    }
+  });
+});
+</script>
+</body></html>
