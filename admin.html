@@ -394,9 +394,22 @@ function showPage(id){
 /* ═══════════════════════════════════════════════
    FIREBASE READ
 ═══════════════════════════════════════════════ */
-async function fetchFirebase(){
+/*async function fetchFirebase(){
   const snap = await db.ref('/').once('value');
   fbData = snap.val() || {};
+  return fbData;
+}
+*/
+  // ΝΕΟ:
+async function fetchFirebase(){
+  const [sessionsSnap, reportsSnap] = await Promise.all([
+    db.ref('sessions').once('value'),
+    db.ref('reports').once('value')
+  ]);
+  fbData = {
+    sessions: sessionsSnap.val() || {},
+    reports:  reportsSnap.val()  || {}
+  };
   return fbData;
 }
 
