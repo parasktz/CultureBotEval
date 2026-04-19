@@ -957,12 +957,20 @@ function buildFile2(data){
   };
 
   function ratingToNum(key, val){
-    if(!val) return null;
+    if(val===null||val===undefined) return null;
     const map = RATING_MAP[key]||{};
     if(map[val]!==undefined) return map[val];
-    const lower=val.toLowerCase();
+    const lower = String(val).toLowerCase();
     for(const [k,v] of Object.entries(map)) if(k.toLowerCase()===lower) return v;
     return null;
+  }
+
+  // Ratings can be array [null, val1, val2, ...] or object {"1":val1, "2":val2}
+  function getRating(ratings, key){
+    if(Array.isArray(ratings)){
+      return ratings[parseInt(key)] ?? null;
+    }
+    return ratings[key] ?? null;
   }
 
   const LLM_COLORS = {
@@ -1001,7 +1009,7 @@ function buildFile2(data){
       // Scores per LLM per criterion
       const llmScores = {};
       pairs.forEach(([llm, ratings])=>{
-        llmScores[llm] = CRITERIA.map(c=>ratingToNum(c.key, ratings[c.key]));
+        llmScores[llm] = CRITERIA.map(c=>ratingToNum(c.key, getRating(ratings, c.key)));
       });
 
       const datasets = pairs.map(([llm])=>{
