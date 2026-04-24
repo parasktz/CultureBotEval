@@ -670,9 +670,19 @@ async function pushToGitHub(filename, content){
 
   let sha;
   try{
-    const check = await fetch(url,{headers:{'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json'}});
-    if(check.ok){ const j=await check.json(); sha=j.sha; }
-  }catch(e){}
+    // Check if file exists to get sha for update. 404 is expected for new files.
+    const check = await fetch(url,{
+      method:'GET',
+      headers:{'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json'}
+    });
+    if(check.ok){
+      const j = await check.json();
+      sha = j.sha;
+    }
+    // Silently ignore 404 — it just means the file doesn't exist yet.
+  }catch(e){
+    // Network errors ignored; PUT will fail with clearer message if real issue.
+  }
 
   const body = {message:`Add ${filename}`, content:encoded};
   if(sha) body.sha = sha;
