@@ -705,19 +705,41 @@ async function saveReportRecord(filename, type, data){
   const folder = cfg.folder || 'reports';
   const ghUrl  = `https://github.com/${owner}/${repo}/blob/main/${folder}/${filename}`;
   const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/${folder}/${filename}`;
+
+  // 1. Push new record with millisecond timestamp for reliable sorting
   await db.ref('reports').push({
     filename, type,
     createdAt:    new Date().toLocaleString('el-GR'),
+    createdAtMs:  Date.now(),
     url: ghUrl, rawUrl,
     sessionCount: Object.keys(data.sessions||{}).length,
     latest: true
   });
-  const snap = await db.ref('reports').orderByChild('type').equalTo(type).once('value');
-  const updates = {};
-  snap.forEach(c=>{
-    if(c.val().filename!==filename) updates[`reports/${c.key}/latest`]=false;
+
+  // 2. Mark older reports of SAME type as not-latest
+  const sameTypeSnap = await db.ref('reports').orderByChild('type').equalTo(type).once('value');
+  const latestUpdates = {};
+  sameTypeSnap.forEach(c=>{
+    if(c.val().filename!==filename) latestUpdates[`reports/${c.key}/latest`]=false;
   });
-  if(Object.keys(updates).length) await db.ref().update(updates);
+  if(Object.keys(latestUpdates).length) await db.ref().update(latestUpdates);
+
+  // 3. Retention policy: keep only the 2 most recent reports overall, delete the rest
+  const allSnap = await db.ref('reports').once('value');
+  const all = [];
+  allSnap.forEach(c => all.push({ key:c.key, ...c.val() }));
+  // Sort by createdAtMs desc; fallback to filename reverse for legacy records without ms
+  all.sort((a,b)=>{
+    const ams = a.createdAtMs || 0, bms = b.createdAtMs || 0;
+    if(ams !== bms) return bms - ams;
+    return String(b.filename||'').localeCompare(String(a.filename||''));
+  });
+  const toDelete = all.slice(2);
+  if(toDelete.length){
+    const deletes = {};
+    toDelete.forEach(r => { deletes[`reports/${r.key}`] = null; });
+    await db.ref().update(deletes);
+  }
 }
 
 async function updateLatestPointer(f1, f2){
