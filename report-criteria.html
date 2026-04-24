@@ -179,14 +179,16 @@ async function loadReport(){
     const url  = snap.val();
     if(!url){ show('screen-noreport'); return; }
 
+    console.log('[report-criteria] Fetching:', url);
     const res  = await fetch(url);
-    if(!res.ok) throw new Error('HTTP ' + res.status);
+    if(!res.ok) throw new Error('HTTP ' + res.status + ' fetching ' + url);
     const html = await res.text();
 
     document.getElementById('report-frame').srcdoc = html;
     document.getElementById('frame-wrap').style.display = 'block';
     hide('screen-loading');
   }catch(e){
+    console.error('[report-criteria] Load failed:', e);
     show('screen-noreport');
   }
 }
