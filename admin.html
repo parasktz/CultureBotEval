@@ -801,7 +801,6 @@ async function debugEvaluations(){
   if(sample){
     log('info', `Sample session [${sample.key}] — Structure: ${sample.structure}`);
     log('info', `Ratings: ${JSON.stringify(sample.ratings)}`);
-    // Check LLM detection
     const s = sessions[sample.key];
     log('info', `LLM detected as: "${detectLLM(s)}" (llmTitle: "${s.llmTitle||'—'}")`);
     log('info', `Persona: "${s.personaTitle||'—'}"`);
@@ -809,6 +808,37 @@ async function debugEvaluations(){
   } else {
     log('err', 'No sessions with evaluations found!');
   }
+
+  // ==== Enhanced: Dump per-persona evaluator counts ====
+  log('info', '--- Per-persona evaluator counts ---');
+  const stats = {};
+  keys.forEach(k=>{
+    const s  = sessions[k];
+    const pt = s.personaTitle || 'Unknown';
+    const ev = s.evaluations;
+    let evalCount = 0;
+    if(ev && typeof ev === 'object'){
+      if(ev.ratings){
+        evalCount = 1;
+      } else {
+        Object.entries(ev).forEach(([kk, child])=>{
+          if(!child || typeof child !== 'object') return;
+          if(kk === 'timestamp' || kk === 'metadata' || kk === 'by') return;
+          if(child.ratings) evalCount++;
+        });
+      }
+    }
+    if(!stats[pt]) stats[pt] = {sessions:0, evaluations:0, withEvals:0};
+    stats[pt].sessions++;
+    stats[pt].evaluations += evalCount;
+    if(evalCount > 0) stats[pt].withEvals++;
+  });
+
+  Object.entries(stats).sort((a,b)=>b[1].evaluations-a[1].evaluations).forEach(([pt, v])=>{
+    const tag = v.evaluations > 0 ? 'ok' : 'info';
+    log(tag, `  [${v.evaluations} evals] ${v.sessions} sess · ${v.withEvals} sess-w-evals · ${pt}`);
+  });
+
   log('info', '--- END DEBUG ---');
 }
 
@@ -819,23 +849,40 @@ function buildFile1(data){
   const sessions = data.sessions || {};
   const allKeys  = Object.keys(sessions);
 
-  // Count evaluators on a single session (Structure A or B)
+  // Count evaluators on a single session (robust — handles all known formats)
   function countEvaluators(s){
     const ev = s.evaluations;
-    if(!ev || typeof ev !== 'object') return 0;
-    if(ev.ratings) return 1; // Structure A: single evaluation
-    // Structure B: collection of evaluation records
-    return Object.values(ev).filter(c => c && typeof c === 'object' && c.ratings).length;
+    if(!ev) return 0;
+    if(typeof ev !== 'object') return 0;
+
+    // Structure A: session.evaluations.ratings exists directly
+    if(ev.ratings){
+      // Count as 1 evaluator regardless of whether ratings is array or object
+      return 1;
+    }
+
+    // Structure B: session.evaluations = { pushKey1: {ratings,...}, pushKey2: {...} }
+    let count = 0;
+    Object.entries(ev).forEach(([k, child])=>{
+      if(!child || typeof child !== 'object') return;
+      // Skip known non-evaluation fields
+      if(k === 'timestamp' || k === 'metadata' || k === 'by') return;
+      // If this child has ratings, count it as 1 evaluator
+      if(child.ratings) count++;
+    });
+    return count;
   }
 
   // byPersona[persona][query][llm] = { sessions:N, evaluators:M }
   const byPersona = {};
+  let debugTotalEvaluators = 0;
   allKeys.forEach(k=>{
     const s   = sessions[k];
     const pt  = s.personaTitle || 'Unknown';
     const q   = s.query || '';
     const llm = detectLLM(s);
     const n   = countEvaluators(s);
+    debugTotalEvaluators += n;
     if(!byPersona[pt])         byPersona[pt]         = {};
     if(!byPersona[pt][q])      byPersona[pt][q]      = {};
     if(!byPersona[pt][q][llm]) byPersona[pt][q][llm] = { sessions:0, evaluators:0 };
@@ -853,12 +900,11 @@ function buildFile1(data){
     'ChatGPT':'chatgpt','Gemini':'gemini',
     'SearchCultureBot v1':'scb1','SearchCultureBot v2':'scb2','SearchCultureBot v3':'scb3'
   };
-  const llmChip = (l, evals) => {
+  // Always show count (even 0) so user can see which LLMs have evaluations
+  const llmChip = (l, evals, sessCount) => {
     const cls = LLM_CLASSES[l] || '';
-    const count = evals > 0
-      ? `<span class="llm-chip-count">${evals}</span>`
-      : '';
-    return `<span class="llm ${cls}">${esc(l)}${count}</span>`;
+    const title = `${evals} evaluator${evals===1?'':'s'} across ${sessCount} session${sessCount===1?'':'s'}`;
+    return `<span class="llm ${cls}" title="${title}">${esc(l)}<span class="llm-chip-count${evals===0?' zero':''}">${evals}</span></span>`;
   };
 
   const rolesHtml = personaLabels.map(pt=>{
@@ -867,6 +913,9 @@ function buildFile1(data){
     const totalSessions = qKeys.reduce((a,q)=>{
       return a + Object.values(qMap[q]).reduce((b,rec)=>b+rec.sessions, 0);
     },0);
+    const totalEvals = qKeys.reduce((a,q)=>{
+      return a + Object.values(qMap[q]).reduce((b,rec)=>b+rec.evaluators, 0);
+    },0);
     const rows = qKeys.map((q,i)=>{
       const llmEntries = Object.entries(qMap[q]);
       return `
@@ -874,7 +923,7 @@ function buildFile1(data){
         <div class="q-idx">${i+1}</div>
         <div class="q-body">
           <div class="q-text">${esc(q)}</div>
-          <div class="llms">${llmEntries.map(([l,rec])=>llmChip(l, rec.evaluators)).join('')}</div>
+          <div class="llms">${llmEntries.map(([l,rec])=>llmChip(l, rec.evaluators, rec.sessions)).join('')}</div>
         </div>
       </div>`;
     }).join('');
@@ -885,6 +934,7 @@ function buildFile1(data){
         <div class="badges">
           <span class="badge b-blue">${qKeys.length} quer${qKeys.length!==1?'ies':'y'}</span>
           <span class="badge b-green">${totalSessions} session${totalSessions!==1?'s':''}</span>
+          ${totalEvals>0 ? `<span class="badge b-amber">${totalEvals} evaluation${totalEvals!==1?'s':''}</span>` : ''}
         </div>
       </div>
       <div class="q-list">${rows}</div>
@@ -922,6 +972,7 @@ h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
 .badge{font-size:11px;border-radius:4px;padding:2px 8px;font-weight:500;white-space:nowrap;}
 .b-blue{background:var(--blue-bg);color:var(--blue-t);border:.5px solid rgba(43,127,212,.2);}
 .b-green{background:var(--green-bg);color:var(--green-t);}
+.b-amber{background:#fff4e0;color:#8a4a00;border:.5px solid rgba(138,74,0,.18);}
 .q-list{padding:.4rem 0;}
 .q-row{padding:.65rem 1.25rem;border-bottom:.5px solid var(--border);display:flex;align-items:flex-start;gap:10px;}
 .q-row:last-child{border-bottom:none;}
@@ -932,8 +983,9 @@ h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
 .llms{display:flex;flex-wrap:wrap;gap:4px;}
 .llm{font-size:11px;border-radius:4px;padding:2px 9px;border:.5px solid var(--border);color:var(--muted);background:var(--bg);
      display:inline-flex;align-items:center;gap:5px;}
-.llm-chip-count{background:rgba(0,0,0,.12);padding:0 6px;border-radius:999px;
+.llm-chip-count{background:rgba(0,0,0,.15);padding:0 6px;border-radius:999px;
                 font-size:10px;font-weight:700;min-width:14px;text-align:center;line-height:1.5;}
+.llm-chip-count.zero{background:rgba(0,0,0,.06);color:rgba(0,0,0,.35);font-weight:500;}
 .llm.chatgpt{background:#fff3e0;color:#7a3c00;border-color:rgba(122,60,0,.15);}
 .llm.gemini {background:#e8f5e9;color:#1b5e20;border-color:rgba(27,94,32,.15);}
 .llm.scb1   {background:var(--blue-bg);color:var(--blue-t);border-color:rgba(43,127,212,.15);}
