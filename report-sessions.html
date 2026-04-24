@@ -189,15 +189,16 @@ async function loadReport(user){
     const url    = snap.val();
     if(!url){ show('screen-noreport'); return; }
 
-    // Fetch the saved HTML from GitHub Pages
+    console.log('[report-sessions] Fetching:', url);
     const res  = await fetch(url);
-    if(!res.ok) throw new Error('HTTP ' + res.status);
+    if(!res.ok) throw new Error('HTTP ' + res.status + ' fetching ' + url);
     const html = await res.text();
 
     document.getElementById('report-frame').srcdoc = html;
     document.getElementById('frame-wrap').style.display = 'block';
     hide('screen-loading');
   }catch(e){
+    console.error('[report-sessions] Load failed:', e);
     show('screen-noreport');
   }
 }
