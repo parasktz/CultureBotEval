@@ -930,267 +930,432 @@ ${rolesHtml}
 function buildFile2(data){
   const sessions = data.sessions || {};
 
-  const CRITERIA = [
-    {key:'1',  label:'1. Hallucination Flag'},
-    {key:'2',  label:'2. Query Relevance'},
-    {key:'3',  label:'3. Justification Quality'},
-    {key:'4',  label:'4. Evidence Grounding'},
-    {key:'5',  label:'5. Clarity'},
-    {key:'6',  label:'6. Result Usefulness'},
-    {key:'7',  label:'7. Bias'},
-    {key:'8',  label:'8. Diversity'},
-    {key:'9',  label:'9. Completeness / Variety / Representative'},
-    {key:'10', label:'10. Needed Logical Steps'},
+  // 10 criteria with exact levels from evaluation.html
+  const CRIT_DEFS = [
+    {name:'1. Hallucination Flag',                       levels:['No Hallucination','Minor Hallucination','Major Hallucination','Cannot Determine']},
+    {name:'2. Query Relevance',                          levels:['Fully Relevant','Mostly Relevant','Partially Relevant','Not Relevant']},
+    {name:'3. Justification Quality',                    levels:['Excellent','Good','Fair','Poor']},
+    {name:'4. Evidence Grounding',                       levels:['Well Grounded','Mostly Grounded','Partially Grounded','Ungrounded']},
+    {name:'5. Clarity',                                  levels:['Very Clear','Clear','Somewhat Clear','Unclear']},
+    {name:'6. Result Usefulness',                        levels:['Very Useful','Useful','Somewhat Useful','Not Useful']},
+    {name:'7. Bias',                                     levels:['No Bias','Slight Bias','Moderate Bias','Significant Bias']},
+    {name:'8. Diversity',                                levels:['High','Moderate','Low','None']},
+    {name:'9. Completeness / Variety / Representative',  levels:['Excellent','Good','Fair','Poor']},
+    {name:'10. Needed Logical Steps',                    levels:['All Present','Mostly Present','Partially Present','Missing']}
   ];
 
-  const RATING_MAP = {
-    '1':  {'No Hallucination':3,'Minor Hallucination':2,'Major Hallucination':1,'Cannot Determine':0},
-    '2':  {'Fully Relevant':3,'Mostly Relevant':2,'Partially Relevant':1,'Not Relevant':0},
-    '3':  {'Excellent':3,'Good':2,'Fair':1,'Poor':0},
-    '4':  {'Well Grounded':3,'Mostly Grounded':2,'Partially Grounded':1,'Ungrounded':0},
-    '5':  {'Very Clear':3,'Clear':2,'Somewhat Clear':1,'Unclear':0},
-    '6':  {'Very Useful':3,'Useful':2,'Somewhat Useful':1,'Not Useful':0},
-    '7':  {'No Bias':3,'Slight Bias':2,'Moderate Bias':1,'Significant Bias':0},
-    '8':  {'High':3,'Moderate':2,'Low':1,'None':0},
-    '9':  {'Excellent':3,'Good':2,'Fair':1,'Poor':0},
-    '10': {'All Present':3,'Mostly Present':2,'Partially Present':1,'Missing':0},
-  };
-
-  function ratingToNum(key, val){
-    if(val===null||val===undefined) return null;
-    const map = RATING_MAP[key]||{};
-    if(map[val]!==undefined) return map[val];
-    const lower = String(val).toLowerCase();
-    for(const [k,v] of Object.entries(map)) if(k.toLowerCase()===lower) return v;
-    return null;
+  // Helper: array [null,"v1","v2"...] or object {"1":"v1","2":"v2"}
+  function getRating(ratings, idx1Based){
+    if(Array.isArray(ratings)) return ratings[idx1Based] ?? null;
+    return ratings[String(idx1Based)] ?? null;
   }
 
-  // Ratings can be array [null, val1, val2, ...] or object {"1":val1, "2":val2}
-  function getRating(ratings, key){
-    if(Array.isArray(ratings)){
-      return ratings[parseInt(key)] ?? null;
-    }
-    return ratings[key] ?? null;
-  }
-
+  // LLM solid colors (for Chart.js bars)
   const LLM_COLORS = {
-    'ChatGPT':             {bg:'rgba(249,168,77,0.85)', border:'#f9a84d', text:'#7a3c00'},
-    'Gemini':              {bg:'rgba(66,183,100,0.85)', border:'#42b764', text:'#1b5e20'},
-    'SearchCultureBot v1': {bg:'rgba(43,127,212,0.85)', border:'#2b7fd4', text:'#0a3d6e'},
-    'SearchCultureBot v2': {bg:'rgba(126,87,194,0.85)', border:'#7e57c2', text:'#4527a0'},
-    'SearchCultureBot v3': {bg:'rgba(220,75,100,0.85)', border:'#dc4b64', text:'#880e4f'},
+    'ChatGPT':             '#10a37f',
+    'Gemini':              '#4285f4',
+    'SearchCultureBot v1': '#b14dd1',
+    'SearchCultureBot v2': '#7e57c2',
+    'SearchCultureBot v3': '#dc4b64'
   };
 
-  // Group: persona → query → llm → ratings
-  const byPersona = {};
-  let evCount = 0;
+  // ════════════ Aggregate: persona → query → criterion → llm → distribution ════════════
+  const DATA = { personas:{}, summary:{personas:0,queries:0,evals:0,llms:new Set()} };
+  const persRoleById = {}; // remember first encountered role/guidelines per persona
+
+  // First pass: collect all evaluations, keep ALL evaluator ratings (not just "latest")
+  // so that histograms count ALL ratings from all evaluators
+  const grouped = {}; // { persona: { query: { llm: [ratings, ratings, ...] } } }
+
   Object.values(sessions).forEach(s=>{
-    const ratings = getLatestRatings(s);
-    if(!ratings) return;
-    evCount++;
-    const pt  = s.personaTitle||'Unknown';
-    const q   = s.query||'';
-    const llm = detectLLM(s);
-    if(llm==='Unknown') return;
-    if(!byPersona[pt])    byPersona[pt]   ={};
-    if(!byPersona[pt][q]) byPersona[pt][q]={};
-    byPersona[pt][q][llm] = ratings;
+    const ev = s.evaluations;
+    if(!ev || typeof ev !== 'object') return;
+
+    const persona = s.personaTitle || 'Unknown';
+    const query   = s.query || '';
+    const llm     = detectLLM(s);
+    if(llm === 'Unknown' || !query) return;
+
+    // Collect ALL rating objects from this session (may have multiple evaluators)
+    const ratingsList = [];
+    if(ev.ratings){
+      ratingsList.push(ev.ratings);
+    } else {
+      Object.values(ev).forEach(child=>{
+        if(child && typeof child==='object' && child.ratings){
+          ratingsList.push(child.ratings);
+        }
+      });
+    }
+    if(!ratingsList.length) return;
+
+    if(!grouped[persona])           grouped[persona]           = {};
+    if(!grouped[persona][query])    grouped[persona][query]    = {};
+    if(!grouped[persona][query][llm]) grouped[persona][query][llm] = [];
+    grouped[persona][query][llm].push(...ratingsList);
+
+    // Remember role/guidelines
+    if(!persRoleById[persona]){
+      persRoleById[persona] = {
+        role: s.personaRole || '',
+        guidelines: s.personaGuidelines || ''
+      };
+    }
   });
 
-  // Build chart + ranking data
-  const charts = [];
-  let idx = 0;
-  Object.entries(byPersona).forEach(([persona, qMap])=>{
+  // Second pass: compute distributions per criterion per llm
+  Object.entries(grouped).forEach(([persona, qMap])=>{
+    const pData = {
+      title: persona,
+      role: persRoleById[persona]?.role || '',
+      guidelines: persRoleById[persona]?.guidelines || '',
+      evalCount: 0,
+      llms: new Set(),
+      queries: {}
+    };
+
     Object.entries(qMap).forEach(([query, llmMap])=>{
-      const pairs = Object.entries(llmMap);
-      if(!pairs.length) return;
-      const id = `chart_${idx++}`;
+      const llmList = Object.keys(llmMap);
+      llmList.forEach(l => { pData.llms.add(l); DATA.summary.llms.add(l); });
 
-      // Scores per LLM per criterion
-      const llmScores = {};
-      pairs.forEach(([llm, ratings])=>{
-        llmScores[llm] = CRITERIA.map(c=>ratingToNum(c.key, getRating(ratings, c.key)));
-      });
+      // Total evaluations for this query (sum across all LLMs' rating lists)
+      let qEvalCount = 0;
+      Object.values(llmMap).forEach(arr => qEvalCount += arr.length);
+      pData.evalCount += qEvalCount;
+      DATA.summary.evals += qEvalCount;
 
-      const datasets = pairs.map(([llm])=>{
-        const color = LLM_COLORS[llm]||{bg:'rgba(150,150,150,0.8)',border:'#999'};
-        return {
-          label: llm,
-          data:  llmScores[llm],
-          backgroundColor: color.bg,
-          borderColor:     color.border,
-          borderWidth: 1
-        };
-      });
-
-      // Rankings per criterion: sorted descending, ties grouped
-      const rankings = CRITERIA.map((c,ci)=>{
-        const scored = pairs
-          .map(([llm])=>({llm, score: llmScores[llm][ci]}))
-          .filter(x=>x.score!==null)
-          .sort((a,b)=>b.score-a.score);
-        const groups=[];
-        scored.forEach(item=>{
-          const last=groups[groups.length-1];
-          if(last&&last.score===item.score) last.llms.push(item.llm);
-          else groups.push({score:item.score, llms:[item.llm]});
+      // Build per-criterion data: for each criterion, for each LLM, count per level
+      const criteria = CRIT_DEFS.map((def, cIdx)=>{
+        const idx1 = cIdx + 1;
+        const perLlm = {};
+        llmList.forEach(llm=>{
+          const counts = {};
+          def.levels.forEach(l => counts[l] = 0);
+          let n = 0;
+          llmMap[llm].forEach(ratings=>{
+            const val = getRating(ratings, idx1);
+            if(val && counts[val] !== undefined){
+              counts[val]++;
+              n++;
+            }
+          });
+          perLlm[llm] = { counts, total:n };
         });
-        return groups;
+        return { name:def.name, levels:def.levels, perLlm };
       });
 
-      charts.push({id, persona, query, datasets, rankings, llmList:pairs.map(p=>p[0])});
+      pData.queries[query] = {
+        text: query,
+        evalCount: qEvalCount,
+        llms: llmList,
+        criteria
+      };
     });
+
+    pData.llms = Array.from(pData.llms);
+    DATA.personas[persona] = pData;
+    DATA.summary.personas++;
+    DATA.summary.queries += Object.keys(pData.queries).length;
   });
 
-  const hasData   = charts.length > 0;
-  const chartsJS  = JSON.stringify(charts.map(c=>({id:c.id,datasets:c.datasets,labels:CRITERIA.map(cr=>cr.label)})));
+  DATA.summary.llms = DATA.summary.llms.size;
+  const dataJson  = JSON.stringify(DATA).replace(/</g,'\\u003c');
   const colorsJS  = JSON.stringify(LLM_COLORS);
-  const MEDALS    = ['🥇','🥈','🥉'];
 
-  // Build HTML blocks
-  const blocks = charts.map(c=>{
-
-    // Ranking table rows
-    const rankRows = CRITERIA.map((cr,ci)=>{
-      const groups = c.rankings[ci];
-      if(!groups.length) return `<tr><td class="crit-name">${esc(cr.label)}</td><td class="na-cell" colspan="5">—</td></tr>`;
-      const cells = groups.map((g,gi)=>{
-        const medal = MEDALS[gi]||`${gi+1}.`;
-        const chips = g.llms.map(llm=>{
-          const col = LLM_COLORS[llm]||{bg:'#eee',border:'#ccc',text:'#333'};
-          return `<span class="lchip" style="background:${col.bg};border-color:${col.border};color:${col.text};">${esc(llm)}</span>`;
-        }).join('');
-        return `<td><span class="medal">${medal}</span>${chips}<span class="sbadge">${g.score}/3</span></td>`;
-      }).join('');
-      // Pad empty cells to max 5 columns
-      const empty = Math.max(0, 5-groups.length);
-      const empties = Array(empty).fill('<td class="na-cell"></td>').join('');
-      return `<tr><td class="crit-name">${esc(cr.label)}</td>${cells}${empties}</tr>`;
-    }).join('');
-
-    return `
-<div class="qblock">
-  <div class="qpersona">${esc(c.persona)}</div>
-  <div class="qtext">${esc(c.query)}</div>
-  <div class="chart-area"><canvas id="${c.id}"></canvas></div>
-  <div class="ranking-area">
-    <div class="ranking-hd">LLM Ranking per Criterion — Descending Performance</div>
-    <div class="tscroll">
-      <table class="rtable">
-        <thead><tr>
-          <th class="th-crit">Criterion</th>
-          <th>🥇 Best</th><th>🥈</th><th>🥉</th><th>4th</th><th>5th</th>
-        </tr></thead>
-        <tbody>${rankRows}</tbody>
-      </table>
-    </div>
-  </div>
-</div>`;
-  }).join('');
-
+  // ═════════════════════════════ HTML OUTPUT ═════════════════════════════
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CultureBotEval — Criteria Charts</title>
+<title>Criteria Histograms — CultureBotEval</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>
 <style>
-:root{--bg:#f7f6f2;--card:#fff;--border:rgba(0,0,0,.08);--text:#1a1a14;--muted:#6a6a60;--accent:#1a5ba8;--r:10px;}
+:root{
+  --bg:#f4f3ee; --card:#fff; --border:rgba(0,0,0,.09);
+  --text:#18180f; --muted:#68685f; --muted-2:#a8a89e;
+  --blue-t:#0a3d6e;
+}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:2rem 1.25rem 4rem;}
-.wrap{max-width:1140px;margin:0 auto;}
-h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
-.subtitle{font-size:13px;color:var(--muted);margin-bottom:.5rem;}
-.legend-bar{display:flex;flex-wrap:wrap;gap:8px;margin:.7rem 0 1.5rem;align-items:center;}
-.leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);}
-.leg-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0;}
-.criteria-note{background:#e8f2fc;border:.5px solid rgba(43,127,212,.2);border-radius:8px;
-               padding:.8rem 1rem;margin-bottom:2rem;font-size:12px;color:#0a3d6e;line-height:1.8;}
-/* QUERY BLOCK */
-.qblock{background:var(--card);border:.5px solid var(--border);border-radius:var(--r);
-        margin-bottom:2.5rem;overflow:hidden;}
-.qpersona{font-size:11px;font-weight:700;color:var(--accent);
-          padding:.8rem 1.25rem .1rem;text-transform:uppercase;letter-spacing:.09em;}
-.qtext{font-size:13px;color:var(--text);padding:.15rem 1.25rem .85rem;
-       line-height:1.55;border-bottom:.5px solid var(--border);}
-/* CHART */
-.chart-area{padding:1rem 1.25rem 1.25rem;height:320px;position:relative;}
-/* RANKING */
-.ranking-area{border-top:.5px solid var(--border);padding:1rem 1.25rem 1.5rem;background:#fafaf7;}
-.ranking-hd{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;
-            letter-spacing:.07em;margin-bottom:.75rem;}
-.tscroll{overflow-x:auto;}
-.rtable{width:100%;border-collapse:collapse;font-size:12px;}
-.rtable th{text-align:left;padding:.5rem .75rem;color:var(--muted);font-weight:500;
-           border-bottom:1.5px solid var(--border);font-size:11px;white-space:nowrap;
-           background:#f0efeb;}
-.th-crit{min-width:220px;}
-.rtable td{padding:.5rem .75rem;border-bottom:.5px solid rgba(0,0,0,.04);vertical-align:middle;}
-.rtable tr:last-child td{border-bottom:none;}
-.rtable tr:hover td{background:rgba(0,0,0,.015);}
-.crit-name{font-size:11px;color:var(--muted);white-space:nowrap;font-weight:500;}
-.medal{font-size:14px;margin-right:3px;}
-.lchip{display:inline-block;font-size:10px;padding:1px 7px;border-radius:4px;
-       border:.5px solid;font-weight:500;margin-right:3px;white-space:nowrap;}
-.sbadge{display:inline-block;font-size:10px;font-weight:700;color:var(--accent);
-        background:#e8f2fc;padding:1px 6px;border-radius:4px;margin-left:3px;}
-.na-cell{color:#ccc;font-size:11px;}
-/* MISC */
-.empty-note{padding:3rem;text-align:center;color:var(--muted);font-size:14px;line-height:1.8;}
-.gen-info{font-size:11px;color:var(--muted);margin-top:2rem;padding-top:1rem;
-          border-top:.5px solid var(--border);font-family:monospace;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+     background:var(--bg);color:var(--text);padding:1.5rem 1.5rem 3rem;
+     max-width:1200px;margin:0 auto;}
+
+.meta-stamp{font-size:10.5px;color:var(--muted-2);text-align:right;margin-bottom:.5rem;}
+h1.title{font-size:22px;font-weight:500;margin-bottom:.3rem;}
+.subtitle{font-size:13px;color:var(--muted);margin-bottom:.8rem;}
+
+/* Summary chips */
+.summary{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.2rem;}
+.summary-chip{background:var(--card);border:.5px solid var(--border);border-radius:999px;
+              padding:.35rem .9rem;font-size:11.5px;color:var(--muted);
+              display:inline-flex;align-items:center;gap:6px;}
+.summary-chip strong{color:var(--text);font-weight:600;}
+
+/* Persona pills */
+.persona-nav{display:flex;gap:.4rem;margin-bottom:1.5rem;padding-bottom:.5rem;
+             overflow-x:auto;border-bottom:.5px solid var(--border);scrollbar-width:none;}
+.persona-nav::-webkit-scrollbar{display:none;}
+.persona-pill{background:transparent;border:.5px solid var(--border);color:var(--muted);
+              padding:.5rem .95rem;border-radius:999px;font-size:12.5px;font-weight:500;
+              cursor:pointer;white-space:nowrap;transition:all .15s ease;font-family:inherit;}
+.persona-pill:hover{color:var(--text);border-color:var(--muted-2);}
+.persona-pill.active{background:var(--blue-t);color:#fff;border-color:var(--blue-t);}
+.persona-pill .count{display:inline-block;margin-left:6px;padding:1px 7px;
+                     background:rgba(0,0,0,.06);border-radius:999px;font-size:10.5px;}
+.persona-pill.active .count{background:rgba(255,255,255,.2);}
+
+/* Persona header */
+.persona-header{margin-bottom:1.5rem;}
+.persona-label{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+               color:var(--muted);margin-bottom:.4rem;}
+.persona-title{font-size:26px;font-weight:600;line-height:1.2;margin-bottom:.5rem;}
+.persona-meta{font-size:12.5px;color:var(--muted);line-height:1.5;max-width:720px;}
+.persona-meta strong{color:var(--text);font-weight:500;}
+
+.section-head{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+              color:var(--muted);margin:1.5rem 0 .75rem;
+              display:flex;align-items:center;gap:8px;}
+.section-head::after{content:'';flex:1;height:.5px;background:var(--border);}
+
+/* Accordion */
+.query-list{display:flex;flex-direction:column;gap:.5rem;}
+.query-card{background:var(--card);border:.5px solid var(--border);border-radius:10px;
+            overflow:hidden;transition:box-shadow .2s ease;}
+.query-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.04);}
+.query-card.open{box-shadow:0 4px 20px rgba(0,0,0,.06);}
+.query-head{display:flex;align-items:center;gap:.85rem;padding:.95rem 1.1rem;
+            cursor:pointer;user-select:none;transition:background .12s ease;}
+.query-head:hover{background:rgba(0,0,0,.015);}
+.query-chevron{flex-shrink:0;width:16px;height:16px;color:var(--muted-2);
+               transition:transform .25s ease;}
+.query-card.open .query-chevron{transform:rotate(90deg);}
+.query-title{flex:1;font-size:13.5px;color:var(--text);font-weight:500;
+             line-height:1.45;word-break:break-word;}
+.query-badges{display:flex;gap:.35rem;flex-shrink:0;flex-wrap:wrap;
+              justify-content:flex-end;max-width:40%;}
+.llm-badge{font-size:10.5px;padding:2px 8px;border-radius:999px;color:#fff;
+           font-weight:500;white-space:nowrap;}
+.query-evals{font-size:11px;color:var(--muted);background:rgba(0,0,0,.04);
+             padding:2px 8px;border-radius:999px;white-space:nowrap;}
+
+.query-body{max-height:0;overflow:hidden;transition:max-height .5s ease;}
+.query-card.open .query-body{max-height:20000px;}
+.query-body-inner{padding:.4rem 1.1rem 1.25rem;}
+
+/* Criterion histograms grid */
+.crit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));
+           gap:1rem;margin-top:.8rem;}
+.crit-card{border:.5px solid var(--border);border-radius:8px;padding:.8rem .9rem;
+           background:#fafaf7;}
+.crit-name{font-size:12.5px;font-weight:600;color:var(--text);
+           letter-spacing:-.005em;margin-bottom:.5rem;}
+.crit-meta{font-size:10.5px;color:var(--muted);margin-bottom:.6rem;}
+.chart-wrap{position:relative;height:200px;}
+.crit-empty{padding:1rem;text-align:center;font-size:11px;color:var(--muted-2);}
+
+.empty{padding:2.5rem 1rem;text-align:center;font-size:13px;color:var(--muted);}
 </style>
 </head>
 <body>
-<div class="wrap">
-<h1>CultureBotEval — Evaluation Criteria Charts</h1>
-<div class="subtitle">Score: 3=Best · 0=Worst · Generated: ${new Date().toLocaleDateString('el-GR')}</div>
 
-<div class="legend-bar" id="leg-bar">
-  <span style="font-size:12px;color:var(--muted);margin-right:4px;">LLMs:</span>
-  ${Object.entries(LLM_COLORS).map(([l,c])=>`<span class="leg"><span class="leg-dot" style="background:${c.bg};border:1px solid ${c.border};"></span>${esc(l)}</span>`).join('')}
-</div>
+<div class="meta-stamp">Generated ${new Date().toLocaleString('el-GR')}</div>
+<h1 class="title">CultureBotEval — Criteria Histograms</h1>
+<div class="subtitle">Per-query rating distribution, grouped by LLM</div>
 
-<div class="criteria-note">
-  <strong>Evaluation Criteria</strong> — Score: 3=Best · 0=Worst<br>
-  1. Hallucination Flag &nbsp;·&nbsp; 2. Query Relevance &nbsp;·&nbsp;
-  3. Justification Quality &nbsp;·&nbsp; 4. Evidence Grounding &nbsp;·&nbsp;
-  5. Clarity &nbsp;·&nbsp; 6. Result Usefulness &nbsp;·&nbsp;
-  7. Bias &nbsp;·&nbsp; 8. Diversity &nbsp;·&nbsp;
-  9. Completeness / Variety / Representative &nbsp;·&nbsp; 10. Needed Logical Steps
-</div>
+<div id="root"></div>
 
-${hasData ? blocks : '<div class="empty-note">No evaluations found.<br><small>Submit evaluations via the evaluation form first.</small></div>'}
-
-<div class="gen-info">Generated: ${new Date().toISOString()} · CultureBotEval Admin</div>
-</div>
-
+<script id="report-data" type="application/json">${dataJson}</script>
 <script>
-const CHARTS=${chartsJS};
-CHARTS.forEach(c=>{
-  const canvas=document.getElementById(c.id);
-  if(!canvas) return;
-  new Chart(canvas,{
-    type:'bar',
-    data:{labels:c.labels,datasets:c.datasets},
-    options:{
-      indexAxis:'y',responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{position:'bottom',labels:{font:{size:11},boxWidth:12,padding:10}},
-        tooltip:{callbacks:{label:ctx=>\` \${ctx.dataset.label}: \${ctx.raw??'n/a'}/3\`}}
-      },
-      scales:{
-        x:{min:0,max:3,ticks:{stepSize:1,font:{size:11},
-           callback:v=>({0:'0',1:'1',2:'2',3:'3 ★'}[v]??v)},
-           title:{display:true,text:'Score (0=Worst · 3=Best)',font:{size:11}}},
-        y:{ticks:{font:{size:10},autoSkip:false}}
-      }
+(function(){
+  const DATA       = JSON.parse(document.getElementById('report-data').textContent);
+  const LLM_COLORS = ${colorsJS};
+  const llmColor   = n => LLM_COLORS[n] || '#6b7280';
+
+  function esc(s){
+    return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  const root = document.getElementById('root');
+  const personaNames = Object.keys(DATA.personas).sort();
+
+  if(!personaNames.length){
+    root.innerHTML = '<div class="empty">📭 No evaluations found.</div>';
+    return;
+  }
+
+  const state = { current: personaNames[0] };
+  const chartInstances = []; // track to destroy on re-render
+
+  function render(){
+    // Destroy existing charts
+    while(chartInstances.length){
+      try{ chartInstances.pop().destroy(); }catch(e){}
     }
-  });
-});
+
+    const P = DATA.personas[state.current];
+    const s = DATA.summary;
+
+    root.innerHTML = \`
+      <div class="summary">
+        <span class="summary-chip"><strong>\${s.personas}</strong> personas</span>
+        <span class="summary-chip"><strong>\${s.queries}</strong> queries</span>
+        <span class="summary-chip"><strong>\${s.llms}</strong> LLMs</span>
+        <span class="summary-chip"><strong>\${s.evals}</strong> evaluations</span>
+      </div>
+      <div class="persona-nav" id="persona-nav"></div>
+      <div id="persona-body"></div>
+    \`;
+
+    const nav = document.getElementById('persona-nav');
+    personaNames.forEach(name=>{
+      const btn = document.createElement('button');
+      btn.className = 'persona-pill' + (name===state.current?' active':'');
+      btn.innerHTML = \`\${esc(name)}<span class="count">\${DATA.personas[name].evalCount}</span>\`;
+      btn.onclick = ()=>{ state.current = name; render(); };
+      nav.appendChild(btn);
+    });
+
+    renderPersona(P);
+  }
+
+  function renderPersona(P){
+    const body = document.getElementById('persona-body');
+    const qNames = Object.keys(P.queries).sort();
+
+    body.innerHTML = \`
+      <div class="persona-header">
+        <div class="persona-label">Persona</div>
+        <h1 class="persona-title">\${esc(P.title)}</h1>
+        \${P.role ? \`<div class="persona-meta">\${esc(P.role)}</div>\` : ''}
+        \${P.guidelines ? \`<div class="persona-meta" style="margin-top:.5rem;"><strong>Guidelines:</strong> \${esc(P.guidelines)}</div>\` : ''}
+      </div>
+      <div class="section-head">Queries · expand to see per-criterion histograms</div>
+      <div class="query-list" id="query-list"></div>
+    \`;
+
+    const list = document.getElementById('query-list');
+    qNames.forEach((qName, idx)=>{
+      list.appendChild(buildCard(P.queries[qName], idx, P.title));
+    });
+  }
+
+  function buildCard(Q, idx, personaName){
+    const card = document.createElement('div');
+    card.className = 'query-card';
+    const badges = Q.llms.map(l =>
+      \`<span class="llm-badge" style="background:\${llmColor(l)}">\${esc(l)}</span>\`
+    ).join('');
+
+    card.innerHTML = \`
+      <div class="query-head">
+        <svg class="query-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+        <div class="query-title">\${esc(Q.text)}</div>
+        <div class="query-badges">
+          \${badges}
+          <span class="query-evals">\${Q.evalCount} eval\${Q.evalCount===1?'':'s'}</span>
+        </div>
+      </div>
+      <div class="query-body"><div class="query-body-inner"></div></div>
+    \`;
+
+    const head = card.querySelector('.query-head');
+    const inner = card.querySelector('.query-body-inner');
+    let rendered = false;
+
+    head.onclick = ()=>{
+      card.classList.toggle('open');
+      if(!rendered){
+        renderQueryCharts(inner, Q, personaName+'_'+idx);
+        rendered = true;
+      }
+    };
+    if(idx===0) setTimeout(()=>head.click(), 30);
+    return card;
+  }
+
+  function renderQueryCharts(container, Q, prefix){
+    const grid = document.createElement('div');
+    grid.className = 'crit-grid';
+
+    Q.criteria.forEach((crit, cIdx)=>{
+      const card = document.createElement('div');
+      card.className = 'crit-card';
+      const cid = \`chart_\${prefix}_\${cIdx}\`;
+
+      // Check if any LLM has any ratings for this criterion
+      const hasAny = Q.llms.some(l => crit.perLlm[l] && crit.perLlm[l].total>0);
+
+      if(!hasAny){
+        card.innerHTML = \`
+          <div class="crit-name">\${esc(crit.name)}</div>
+          <div class="crit-empty">No ratings for this criterion</div>\`;
+        grid.appendChild(card);
+        return;
+      }
+
+      const totalN = Q.llms.reduce((a,l)=>a+(crit.perLlm[l]?.total||0), 0);
+      card.innerHTML = \`
+        <div class="crit-name">\${esc(crit.name)}</div>
+        <div class="crit-meta">Ratings: \${totalN} · Levels: \${crit.levels.length}</div>
+        <div class="chart-wrap"><canvas id="\${cid}"></canvas></div>\`;
+      grid.appendChild(card);
+
+      // Build datasets: one per LLM
+      const datasets = Q.llms.map(llm=>{
+        const dist = (crit.perLlm[llm]?.counts) || {};
+        return {
+          label: llm,
+          data: crit.levels.map(l => dist[l] || 0),
+          backgroundColor: llmColor(llm),
+          borderColor: llmColor(llm),
+          borderWidth: 0,
+          borderRadius: 4,
+          maxBarThickness: 38
+        };
+      });
+
+      // Render chart after DOM insertion
+      requestAnimationFrame(()=>{
+        const canvas = document.getElementById(cid);
+        if(!canvas) return;
+        const chart = new Chart(canvas, {
+          type:'bar',
+          data:{ labels: crit.levels, datasets },
+          options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{
+              legend:{position:'bottom', labels:{font:{size:10},boxWidth:10,padding:8,usePointStyle:true}},
+              tooltip:{
+                callbacks:{
+                  label: ctx => \` \${ctx.dataset.label}: \${ctx.raw} evaluator\${ctx.raw===1?'':'s'}\`
+                }
+              }
+            },
+            scales:{
+              x:{ ticks:{font:{size:10},maxRotation:30,minRotation:0}, grid:{display:false} },
+              y:{ beginAtZero:true, ticks:{stepSize:1,font:{size:10},precision:0},
+                  title:{display:true,text:'# evaluators',font:{size:10}},
+                  grid:{color:'rgba(0,0,0,.05)'} }
+            }
+          }
+        });
+        chartInstances.push(chart);
+      });
+    });
+
+    container.appendChild(grid);
+  }
+
+  render();
+})();
 <\/script>
-</body></html>`;
+</body>
+</html>`;
 }
 
 /* helper */
