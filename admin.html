@@ -1030,7 +1030,11 @@ function buildFile2(data){
 
       // Total evaluations for this query (sum across all LLMs' rating lists)
       let qEvalCount = 0;
-      Object.values(llmMap).forEach(arr => qEvalCount += arr.length);
+      const perLlmCount = {};
+      Object.entries(llmMap).forEach(([llm, arr])=>{
+        qEvalCount += arr.length;
+        perLlmCount[llm] = arr.length;
+      });
       pData.evalCount += qEvalCount;
       DATA.summary.evals += qEvalCount;
 
@@ -1058,6 +1062,7 @@ function buildFile2(data){
         text: query,
         evalCount: qEvalCount,
         llms: llmList,
+        perLlmCount,
         criteria
       };
     });
@@ -1157,7 +1162,9 @@ h1.title{font-size:22px;font-weight:500;margin-bottom:.3rem;}
 .query-badges{display:flex;gap:.35rem;flex-shrink:0;flex-wrap:wrap;
               justify-content:flex-end;max-width:40%;}
 .llm-badge{font-size:10.5px;padding:2px 8px;border-radius:999px;color:#fff;
-           font-weight:500;white-space:nowrap;}
+           font-weight:500;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;}
+.llm-badge-count{background:rgba(255,255,255,.28);padding:0 6px;border-radius:999px;
+                 font-size:10px;font-weight:600;min-width:14px;text-align:center;}
 .query-evals{font-size:11px;color:var(--muted);background:rgba(0,0,0,.04);
              padding:2px 8px;border-radius:999px;white-space:nowrap;}
 
@@ -1302,7 +1309,7 @@ h1.title{font-size:22px;font-weight:500;margin-bottom:.3rem;}
     const card = document.createElement('div');
     card.className = 'query-card';
     const badges = Q.llms.map(l =>
-      \`<span class="llm-badge" style="background:\${llmColor(l)}">\${esc(l)}</span>\`
+      \`<span class="llm-badge" style="background:\${llmColor(l)}">\${esc(l)}<span class="llm-badge-count">\${Q.perLlmCount?.[l] ?? 0}</span></span>\`
     ).join('');
 
     card.innerHTML = \`
