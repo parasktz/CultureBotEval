@@ -849,40 +849,48 @@ function buildFile1(data){
   const sessions = data.sessions || {};
   const allKeys  = Object.keys(sessions);
 
-  // Count evaluators on a single session (robust — handles all known formats)
-  function countEvaluators(s){
+  // Extract evaluator IDs from a session (list, since Structure B can have many)
+  function getEvaluatorIds(s){
     const ev = s.evaluations;
-    if(!ev) return 0;
-    if(typeof ev !== 'object') return 0;
+    if(!ev || typeof ev !== 'object') return [];
+    const ids = [];
+    const extractId = (obj, fallback) =>
+      obj.evaluatorId || obj.evaluatorUid || obj.uid || obj.userId ||
+      obj.by || obj.author || obj.email || fallback;
 
-    // Structure A: session.evaluations.ratings exists directly
     if(ev.ratings){
-      // Count as 1 evaluator regardless of whether ratings is array or object
-      return 1;
+      // Structure A: single evaluation on the session
+      ids.push(extractId(ev, s.creatorUid || s.id || 'anon'));
+    } else {
+      // Structure B: evaluations/<pushKey>/ratings
+      Object.entries(ev).forEach(([k, child])=>{
+        if(!child || typeof child !== 'object') return;
+        if(k === 'timestamp' || k === 'metadata' || k === 'by') return;
+        if(child.ratings) ids.push(extractId(child, k)); // fallback = push key
+      });
     }
-
-    // Structure B: session.evaluations = { pushKey1: {ratings,...}, pushKey2: {...} }
-    let count = 0;
-    Object.entries(ev).forEach(([k, child])=>{
-      if(!child || typeof child !== 'object') return;
-      // Skip known non-evaluation fields
-      if(k === 'timestamp' || k === 'metadata' || k === 'by') return;
-      // If this child has ratings, count it as 1 evaluator
-      if(child.ratings) count++;
-    });
-    return count;
+    return ids;
   }
 
   // byPersona[persona][query][llm] = { sessions:N, evaluators:M }
   const byPersona = {};
-  let debugTotalEvaluators = 0;
+  const perPersonaEvaluators = {}; // Set per persona of unique evaluator IDs
+  const allEvaluators = new Set();
+
   allKeys.forEach(k=>{
     const s   = sessions[k];
     const pt  = s.personaTitle || 'Unknown';
     const q   = s.query || '';
     const llm = detectLLM(s);
-    const n   = countEvaluators(s);
-    debugTotalEvaluators += n;
+    const evalIds = getEvaluatorIds(s);
+    const n   = evalIds.length;
+
+    evalIds.forEach(id=>{
+      allEvaluators.add(id);
+      if(!perPersonaEvaluators[pt]) perPersonaEvaluators[pt] = new Set();
+      perPersonaEvaluators[pt].add(id);
+    });
+
     if(!byPersona[pt])         byPersona[pt]         = {};
     if(!byPersona[pt][q])      byPersona[pt][q]      = {};
     if(!byPersona[pt][q][llm]) byPersona[pt][q][llm] = { sessions:0, evaluators:0 };
@@ -895,12 +903,12 @@ function buildFile1(data){
   const llmSet = new Set();
   allKeys.forEach(k=>llmSet.add(detectLLM(sessions[k])));
   const llmList = [...llmSet].filter(l=>l&&l!=='Unknown');
+  const totalEvals = allKeys.reduce((a,k)=>a+getEvaluatorIds(sessions[k]).length,0);
 
   const LLM_CLASSES = {
     'ChatGPT':'chatgpt','Gemini':'gemini',
     'SearchCultureBot v1':'scb1','SearchCultureBot v2':'scb2','SearchCultureBot v3':'scb3'
   };
-  // Always show count (even 0) so user can see which LLMs have evaluations
   const llmChip = (l, evals, sessCount) => {
     const cls = LLM_CLASSES[l] || '';
     const title = `${evals} evaluator${evals===1?'':'s'} across ${sessCount} session${sessCount===1?'':'s'}`;
@@ -913,9 +921,10 @@ function buildFile1(data){
     const totalSessions = qKeys.reduce((a,q)=>{
       return a + Object.values(qMap[q]).reduce((b,rec)=>b+rec.sessions, 0);
     },0);
-    const totalEvals = qKeys.reduce((a,q)=>{
+    const totalEvalsPersona = qKeys.reduce((a,q)=>{
       return a + Object.values(qMap[q]).reduce((b,rec)=>b+rec.evaluators, 0);
     },0);
+    const uniqueEvaluatorsPersona = (perPersonaEvaluators[pt] || new Set()).size;
     const rows = qKeys.map((q,i)=>{
       const llmEntries = Object.entries(qMap[q]);
       return `
@@ -934,7 +943,8 @@ function buildFile1(data){
         <div class="badges">
           <span class="badge b-blue">${qKeys.length} quer${qKeys.length!==1?'ies':'y'}</span>
           <span class="badge b-green">${totalSessions} session${totalSessions!==1?'s':''}</span>
-          ${totalEvals>0 ? `<span class="badge b-amber">${totalEvals} evaluation${totalEvals!==1?'s':''}</span>` : ''}
+          <span class="badge b-amber">${totalEvalsPersona} evaluation${totalEvalsPersona!==1?'s':''}</span>
+          <span class="badge b-purple">${uniqueEvaluatorsPersona} unique evaluator${uniqueEvaluatorsPersona!==1?'s':''}</span>
         </div>
       </div>
       <div class="q-list">${rows}</div>
@@ -973,6 +983,7 @@ h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
 .b-blue{background:var(--blue-bg);color:var(--blue-t);border:.5px solid rgba(43,127,212,.2);}
 .b-green{background:var(--green-bg);color:var(--green-t);}
 .b-amber{background:#fff4e0;color:#8a4a00;border:.5px solid rgba(138,74,0,.18);}
+.b-purple{background:#ede7f6;color:#4527a0;border:.5px solid rgba(69,39,160,.18);}
 .q-list{padding:.4rem 0;}
 .q-row{padding:.65rem 1.25rem;border-bottom:.5px solid var(--border);display:flex;align-items:flex-start;gap:10px;}
 .q-row:last-child{border-bottom:none;}
@@ -1005,6 +1016,8 @@ h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
   <div class="stat"><div class="stat-lbl">Persona Groups</div><div class="stat-val">${personaLabels.length}</div></div>
   <div class="stat"><div class="stat-lbl">Unique Queries</div><div class="stat-val">${totalQueries}</div></div>
   <div class="stat"><div class="stat-lbl">LLMs</div><div class="stat-val">${llmList.length}</div></div>
+  <div class="stat"><div class="stat-lbl">Evaluations</div><div class="stat-val">${totalEvals}</div></div>
+  <div class="stat"><div class="stat-lbl">Unique Evaluators</div><div class="stat-val">${allEvaluators.size}</div></div>
 </div>
 ${rolesHtml}
 <div class="legend"><span class="leg-lbl">LLMs:</span>${legendItems}</div>
@@ -1050,8 +1063,14 @@ function buildFile2(data){
   };
 
   // ════════════ Aggregate: persona → query → criterion → llm → distribution ════════════
-  const DATA = { personas:{}, summary:{personas:0,queries:0,evals:0,llms:new Set()} };
+  const DATA = { personas:{}, summary:{personas:0,queries:0,evals:0,llms:new Set(),evaluators:new Set()} };
   const persRoleById = {}; // remember first encountered role/guidelines per persona
+
+  // Helper: extract evaluator ID from an evaluation record
+  function extractEvalId(obj, fallback){
+    return obj.evaluatorId || obj.evaluatorUid || obj.uid || obj.userId ||
+           obj.by || obj.author || obj.email || fallback;
+  }
 
   // First pass: collect all evaluations, keep ALL evaluator ratings (not just "latest")
   // so that histograms count ALL ratings from all evaluators
@@ -1066,18 +1085,26 @@ function buildFile2(data){
     const llm     = detectLLM(s);
     if(llm === 'Unknown' || !query) return;
 
-    // Collect ALL rating objects from this session (may have multiple evaluators)
+    // Collect ALL rating objects from this session + track evaluator IDs
     const ratingsList = [];
+    const evIdsForThisSession = [];
     if(ev.ratings){
       ratingsList.push(ev.ratings);
+      evIdsForThisSession.push(extractEvalId(ev, s.creatorUid || s.id || 'anon'));
     } else {
-      Object.values(ev).forEach(child=>{
-        if(child && typeof child==='object' && child.ratings){
+      Object.entries(ev).forEach(([k, child])=>{
+        if(!child || typeof child !== 'object') return;
+        if(k === 'timestamp' || k === 'metadata' || k === 'by') return;
+        if(child.ratings){
           ratingsList.push(child.ratings);
+          evIdsForThisSession.push(extractEvalId(child, k));
         }
       });
     }
     if(!ratingsList.length) return;
+
+    // Track unique evaluators globally
+    evIdsForThisSession.forEach(id => DATA.summary.evaluators.add(id));
 
     if(!grouped[persona])           grouped[persona]           = {};
     if(!grouped[persona][query])    grouped[persona][query]    = {};
@@ -1153,7 +1180,8 @@ function buildFile2(data){
     DATA.summary.queries += Object.keys(pData.queries).length;
   });
 
-  DATA.summary.llms = DATA.summary.llms.size;
+  DATA.summary.llms       = DATA.summary.llms.size;
+  DATA.summary.evaluators = DATA.summary.evaluators.size;
   const dataJson  = JSON.stringify(DATA).replace(/</g,'\\u003c');
   const colorsJS  = JSON.stringify(LLM_COLORS);
 
@@ -1312,6 +1340,7 @@ h1.title{font-size:22px;font-weight:500;margin-bottom:.3rem;}
         <span class="summary-chip"><strong>\${s.queries}</strong> queries</span>
         <span class="summary-chip"><strong>\${s.llms}</strong> LLMs</span>
         <span class="summary-chip"><strong>\${s.evals}</strong> evaluations</span>
+        <span class="summary-chip"><strong>\${s.evaluators}</strong> unique evaluators</span>
       </div>
       <div class="persona-nav-wrap">
         <button class="nav-arrow left" id="nav-arrow-left" aria-label="Scroll left">‹</button>
