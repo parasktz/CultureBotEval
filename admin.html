@@ -612,7 +612,8 @@ async function generateAndPush(fileNum){
     const filename = `${ts}_statistics${fileNum===1?'':'-criteria'}.html`;
     await pushToGitHub(filename, html);
     await saveReportRecord(filename, fileNum===1?'stats':'criteria', fbData);
-    log('ok',`✓ ${filename} pushed to GitHub.`);
+    await updateLatestPointerSingle(filename, fileNum===1?'stats':'criteria');
+    log('ok',`✓ ${filename} pushed & latest pointer updated.`);
   }catch(e){ log('err','Error: '+e.message); }
   setSpin(spinId,false);
 }
@@ -723,10 +724,21 @@ async function updateLatestPointer(f1, f2){
   const owner  = cfg.owner  || 'parasktz';
   const repo   = cfg.repo   || 'CultureBotEval';
   const folder = cfg.folder || 'reports';
-  // Use GitHub Pages URL so the iframe can render the HTML correctly
-  await db.ref('latestReports').set({
-    stats:    `https://${owner}.github.io/${repo}/${folder}/${f1}`,
-    criteria: `https://${owner}.github.io/${repo}/${folder}/${f2}`,
+  // Use raw.githubusercontent.com — propagates instantly, no GitHub Pages required
+  await db.ref('latestReports').update({
+    stats:    `https://raw.githubusercontent.com/${owner}/${repo}/main/${folder}/${f1}`,
+    criteria: `https://raw.githubusercontent.com/${owner}/${repo}/main/${folder}/${f2}`,
+    updatedAt: new Date().toISOString()
+  });
+}
+
+async function updateLatestPointerSingle(filename, type){
+  const owner  = cfg.owner  || 'parasktz';
+  const repo   = cfg.repo   || 'CultureBotEval';
+  const folder = cfg.folder || 'reports';
+  const url    = `https://raw.githubusercontent.com/${owner}/${repo}/main/${folder}/${filename}`;
+  await db.ref('latestReports').update({
+    [type]: url,
     updatedAt: new Date().toISOString()
   });
 }
