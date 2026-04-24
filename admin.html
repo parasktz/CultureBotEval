@@ -819,14 +819,28 @@ function buildFile1(data){
   const sessions = data.sessions || {};
   const allKeys  = Object.keys(sessions);
 
+  // Count evaluators on a single session (Structure A or B)
+  function countEvaluators(s){
+    const ev = s.evaluations;
+    if(!ev || typeof ev !== 'object') return 0;
+    if(ev.ratings) return 1; // Structure A: single evaluation
+    // Structure B: collection of evaluation records
+    return Object.values(ev).filter(c => c && typeof c === 'object' && c.ratings).length;
+  }
+
+  // byPersona[persona][query][llm] = { sessions:N, evaluators:M }
   const byPersona = {};
   allKeys.forEach(k=>{
-    const s  = sessions[k];
-    const pt = s.personaTitle || 'Unknown';
-    const q  = s.query || '';
-    if(!byPersona[pt])    byPersona[pt]    = {};
-    if(!byPersona[pt][q]) byPersona[pt][q] = new Set();
-    byPersona[pt][q].add(detectLLM(s));
+    const s   = sessions[k];
+    const pt  = s.personaTitle || 'Unknown';
+    const q   = s.query || '';
+    const llm = detectLLM(s);
+    const n   = countEvaluators(s);
+    if(!byPersona[pt])         byPersona[pt]         = {};
+    if(!byPersona[pt][q])      byPersona[pt][q]      = {};
+    if(!byPersona[pt][q][llm]) byPersona[pt][q][llm] = { sessions:0, evaluators:0 };
+    byPersona[pt][q][llm].sessions++;
+    byPersona[pt][q][llm].evaluators += n;
   });
 
   const personaLabels = Object.keys(byPersona);
@@ -839,20 +853,31 @@ function buildFile1(data){
     'ChatGPT':'chatgpt','Gemini':'gemini',
     'SearchCultureBot v1':'scb1','SearchCultureBot v2':'scb2','SearchCultureBot v3':'scb3'
   };
-  const llmChip = l=>`<span class="llm ${LLM_CLASSES[l]||''}">${esc(l)}</span>`;
+  const llmChip = (l, evals) => {
+    const cls = LLM_CLASSES[l] || '';
+    const count = evals > 0
+      ? `<span class="llm-chip-count">${evals}</span>`
+      : '';
+    return `<span class="llm ${cls}">${esc(l)}${count}</span>`;
+  };
 
   const rolesHtml = personaLabels.map(pt=>{
     const qMap  = byPersona[pt];
     const qKeys = Object.keys(qMap);
-    const totalSessions = qKeys.reduce((a,q)=>a+qMap[q].size,0);
-    const rows = qKeys.map((q,i)=>`
+    const totalSessions = qKeys.reduce((a,q)=>{
+      return a + Object.values(qMap[q]).reduce((b,rec)=>b+rec.sessions, 0);
+    },0);
+    const rows = qKeys.map((q,i)=>{
+      const llmEntries = Object.entries(qMap[q]);
+      return `
       <div class="q-row">
         <div class="q-idx">${i+1}</div>
         <div class="q-body">
           <div class="q-text">${esc(q)}</div>
-          <div class="llms">${[...qMap[q]].map(llmChip).join('')}</div>
+          <div class="llms">${llmEntries.map(([l,rec])=>llmChip(l, rec.evaluators)).join('')}</div>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     return `
     <div class="role-block">
       <div class="role-head">
@@ -905,7 +930,10 @@ h1{font-size:22px;font-weight:500;margin-bottom:.3rem;}
 .q-body{flex:1;min-width:0;}
 .q-text{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:6px;word-break:break-word;white-space:pre-wrap;}
 .llms{display:flex;flex-wrap:wrap;gap:4px;}
-.llm{font-size:11px;border-radius:4px;padding:2px 9px;border:.5px solid var(--border);color:var(--muted);background:var(--bg);}
+.llm{font-size:11px;border-radius:4px;padding:2px 9px;border:.5px solid var(--border);color:var(--muted);background:var(--bg);
+     display:inline-flex;align-items:center;gap:5px;}
+.llm-chip-count{background:rgba(0,0,0,.12);padding:0 6px;border-radius:999px;
+                font-size:10px;font-weight:700;min-width:14px;text-align:center;line-height:1.5;}
 .llm.chatgpt{background:#fff3e0;color:#7a3c00;border-color:rgba(122,60,0,.15);}
 .llm.gemini {background:#e8f5e9;color:#1b5e20;border-color:rgba(27,94,32,.15);}
 .llm.scb1   {background:var(--blue-bg);color:var(--blue-t);border-color:rgba(43,127,212,.15);}
