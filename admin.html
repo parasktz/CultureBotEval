@@ -707,7 +707,7 @@ async function saveReportRecord(filename, type, data){
   const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/${folder}/${filename}`;
 
   // 1. Push new record with millisecond timestamp for reliable sorting
-  await db.ref('reports').push({
+  const newRef = await db.ref('reports').push({
     filename, type,
     createdAt:    new Date().toLocaleString('el-GR'),
     createdAtMs:  Date.now(),
@@ -715,30 +715,51 @@ async function saveReportRecord(filename, type, data){
     sessionCount: Object.keys(data.sessions||{}).length,
     latest: true
   });
+  const newKey = newRef.key;
 
-  // 2. Mark older reports of SAME type as not-latest
-  const sameTypeSnap = await db.ref('reports').orderByChild('type').equalTo(type).once('value');
-  const latestUpdates = {};
-  sameTypeSnap.forEach(c=>{
-    if(c.val().filename!==filename) latestUpdates[`reports/${c.key}/latest`]=false;
-  });
-  if(Object.keys(latestUpdates).length) await db.ref().update(latestUpdates);
-
-  // 3. Retention policy: keep only the 2 most recent reports overall, delete the rest
+  // 2. Retention: keep only THE latest report per type. Delete all older
+  //    records (regardless of type), so Firebase `reports` never grows
+  //    beyond 1 stats + 1 criteria = 2 records max total.
   const allSnap = await db.ref('reports').once('value');
   const all = [];
-  allSnap.forEach(c => all.push({ key:c.key, ...c.val() }));
-  // Sort by createdAtMs desc; fallback to filename reverse for legacy records without ms
-  all.sort((a,b)=>{
-    const ams = a.createdAtMs || 0, bms = b.createdAtMs || 0;
-    if(ams !== bms) return bms - ams;
-    return String(b.filename||'').localeCompare(String(a.filename||''));
+  allSnap.forEach(c => {
+    const v = c.val() || {};
+    all.push({
+      key: c.key,
+      type: v.type || '—',
+      filename: v.filename || '',
+      createdAtMs: v.createdAtMs || 0
+    });
   });
-  const toDelete = all.slice(2);
+
+  // Group by type, keep latest per group, delete rest
+  const byType = {};
+  all.forEach(r => {
+    if(!byType[r.type]) byType[r.type] = [];
+    byType[r.type].push(r);
+  });
+
+  const toDelete = [];
+  Object.entries(byType).forEach(([t, arr])=>{
+    arr.sort((a,b)=>{
+      const ams = a.createdAtMs || 0, bms = b.createdAtMs || 0;
+      if(ams !== bms) return bms - ams; // newest first
+      return String(b.filename).localeCompare(String(a.filename));
+    });
+    // Keep first (latest), delete rest
+    arr.slice(1).forEach(r => toDelete.push(r));
+  });
+
+  log('info', `Retention: ${all.length} records total, deleting ${toDelete.length}`);
+
   if(toDelete.length){
     const deletes = {};
-    toDelete.forEach(r => { deletes[`reports/${r.key}`] = null; });
+    toDelete.forEach(r => {
+      deletes[`reports/${r.key}`] = null;
+      log('info', `  ✗ delete ${r.type}: ${r.filename}`);
+    });
     await db.ref().update(deletes);
+    log('ok', `Deleted ${toDelete.length} old report record${toDelete.length===1?'':'s'}`);
   }
 }
 
