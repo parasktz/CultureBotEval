@@ -1103,12 +1103,24 @@ h1.title{font-size:22px;font-weight:500;margin-bottom:.3rem;}
 .summary-chip strong{color:var(--text);font-weight:600;}
 
 /* Persona pills */
-.persona-nav{display:flex;gap:.4rem;margin-bottom:1.5rem;padding-bottom:.5rem;
-             overflow-x:auto;border-bottom:.5px solid var(--border);scrollbar-width:none;}
+/* Persona nav wrapper with scroll arrows */
+.persona-nav-wrap{position:relative;margin-bottom:1.5rem;border-bottom:.5px solid var(--border);padding-bottom:.5rem;}
+.persona-nav{display:flex;gap:.4rem;overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth;
+             padding:0 38px;}
 .persona-nav::-webkit-scrollbar{display:none;}
+.nav-arrow{position:absolute;top:0;bottom:.5rem;width:32px;
+           display:flex;align-items:center;justify-content:center;
+           background:var(--bg);border:.5px solid var(--border);border-radius:6px;
+           color:var(--muted);cursor:pointer;font-size:16px;font-weight:600;
+           transition:all .15s ease;z-index:2;user-select:none;font-family:inherit;padding:0;}
+.nav-arrow:hover{color:var(--text);background:var(--card);border-color:var(--muted-2);
+                 box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.nav-arrow:disabled{opacity:.25;cursor:not-allowed;background:transparent;box-shadow:none;}
+.nav-arrow.left{left:0;}
+.nav-arrow.right{right:0;}
 .persona-pill{background:transparent;border:.5px solid var(--border);color:var(--muted);
               padding:.5rem .95rem;border-radius:999px;font-size:12.5px;font-weight:500;
-              cursor:pointer;white-space:nowrap;transition:all .15s ease;font-family:inherit;}
+              cursor:pointer;white-space:nowrap;transition:all .15s ease;font-family:inherit;flex-shrink:0;}
 .persona-pill:hover{color:var(--text);border-color:var(--muted-2);}
 .persona-pill.active{background:var(--blue-t);color:#fff;border-color:var(--blue-t);}
 .persona-pill .count{display:inline-block;margin-left:6px;padding:1px 7px;
@@ -1214,7 +1226,11 @@ h1.title{font-size:22px;font-weight:500;margin-bottom:.3rem;}
         <span class="summary-chip"><strong>\${s.llms}</strong> LLMs</span>
         <span class="summary-chip"><strong>\${s.evals}</strong> evaluations</span>
       </div>
-      <div class="persona-nav" id="persona-nav"></div>
+      <div class="persona-nav-wrap">
+        <button class="nav-arrow left" id="nav-arrow-left" aria-label="Scroll left">‹</button>
+        <div class="persona-nav" id="persona-nav"></div>
+        <button class="nav-arrow right" id="nav-arrow-right" aria-label="Scroll right">›</button>
+      </div>
       <div id="persona-body"></div>
     \`;
 
@@ -1226,6 +1242,37 @@ h1.title{font-size:22px;font-weight:500;margin-bottom:.3rem;}
       btn.onclick = ()=>{ state.current = name; render(); };
       nav.appendChild(btn);
     });
+
+    // Wire up scroll arrows
+    const leftArrow  = document.getElementById('nav-arrow-left');
+    const rightArrow = document.getElementById('nav-arrow-right');
+    const updateArrows = () => {
+      const maxScroll = nav.scrollWidth - nav.clientWidth;
+      leftArrow.disabled  = nav.scrollLeft <= 2;
+      rightArrow.disabled = nav.scrollLeft >= maxScroll - 2;
+      // Hide both arrows if no overflow at all
+      const overflows = nav.scrollWidth > nav.clientWidth + 4;
+      leftArrow.style.display  = overflows ? 'flex' : 'none';
+      rightArrow.style.display = overflows ? 'flex' : 'none';
+    };
+    leftArrow.onclick  = () => nav.scrollBy({left:-220, behavior:'smooth'});
+    rightArrow.onclick = () => nav.scrollBy({left:220, behavior:'smooth'});
+    nav.addEventListener('scroll', updateArrows);
+    // Initial + post-layout checks
+    updateArrows();
+    setTimeout(updateArrows, 50);
+    window.addEventListener('resize', updateArrows);
+
+    // Scroll active pill into view
+    const activeBtn = nav.querySelector('.persona-pill.active');
+    if(activeBtn){
+      const pillOffset = activeBtn.offsetLeft;
+      const pillWidth  = activeBtn.offsetWidth;
+      const navWidth   = nav.clientWidth;
+      if(pillOffset + pillWidth > nav.scrollLeft + navWidth || pillOffset < nav.scrollLeft){
+        nav.scrollTo({left: Math.max(0, pillOffset - navWidth/2 + pillWidth/2), behavior:'smooth'});
+      }
+    }
 
     renderPersona(P);
   }
